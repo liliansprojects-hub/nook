@@ -1,0 +1,184 @@
+@import url('https://fonts.googleapis.com/css2?family=Varela+Round&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* the header, headings and subheadings all carry the bold rounded voice */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 800;
+  }
+}
+
+@layer base {
+  :root {
+    /* white everywhere; the accent is the only colour that carries meaning */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 13%;
+    --primary: 8 78% 74%;
+    --primary-foreground: 8 42% 36%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 24%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 46%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 24%;
+    --destructive: 0 62% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 91%;
+    --input: 0 0% 91%;
+    --ring: 8 78% 74%;
+    --brand: 8 78% 74%;
+    --brand-soft: 8 80% 96%;
+    --brand-ink: 8 42% 36%;
+    --brand-foreground: 0 0% 100%;
+    --brand-on: 8 42% 36%;
+    --radius: 1.35rem;
+    --font-heading: 'Arial Rounded MT Bold', 'Helvetica Rounded', 'Varela Round', ui-rounded, system-ui, sans-serif;
+    --font-body: 'Arial Rounded MT Bold', 'Helvetica Rounded', 'Varela Round', ui-rounded, system-ui, sans-serif;
+    --font-display: 'Arial Rounded MT Bold', 'Helvetica Rounded', 'Varela Round', ui-rounded, system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 13%;
+    --sidebar-primary: 8 78% 74%;
+    --sidebar-primary-foreground: 8 42% 36%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 0 0% 24%;
+    --sidebar-border: 0 0% 91%;
+    --sidebar-ring: 8 78% 74%;
+  }
+
+  .dark {
+    --background: 0 0% 8%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 8 70% 62%;
+    --primary-foreground: 0 0% 12%;
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 66%;
+    --accent: 0 0% 16%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 19%;
+    --input: 0 0% 19%;
+    --ring: 8 70% 60%;
+    --brand: 8 70% 62%;
+    --brand-soft: 8 20% 22%;
+    --brand-ink: 8 70% 82%;
+    --brand-foreground: 0 0% 100%;
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 8 70% 62%;
+    --sidebar-primary-foreground: 0 0% 12%;
+    --sidebar-accent: 0 0% 16%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 0 0% 19%;
+    --sidebar-ring: 8 70% 60%;
+    --brand-on: 8 70% 82%;
+  }
+
+  /* subheadings and secondary copy sit a touch heavier than body text */
+  .text-muted-foreground {
+    font-weight: 500;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    font-weight: 400;
+    letter-spacing: 0.014em;
+    text-transform: lowercase;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5 {
+    font-weight: 400;
+    letter-spacing: 0.012em;
+    color: hsl(var(--brand-ink));
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+  }
+
+  /* every string in the app reads lowercase, wherever it appears */
+  body,
+  body * {
+    text-transform: lowercase !important;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-3xl bg-card;
+    border: 1px solid hsl(var(--brand-soft));
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px];
+  }
+  .press {
+    @apply transition-transform duration-200 active:scale-[0.97];
+  }
+  /* a drink being held */
+  .sip {
+    animation: sip 1.2s ease-in-out both;
+    transform-origin: 50% 88%;
+  }
+  .sipping {
+    animation: sip 1.15s ease-in-out infinite;
+    transform-origin: 50% 88%;
+  }
+}
+
+@keyframes sip {
+  0% {
+    transform: rotate(0deg) translateY(0);
+  }
+  35% {
+    transform: rotate(-16deg) translateY(-3px);
+  }
+  70% {
+    transform: rotate(-6deg) translateY(0);
+  }
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

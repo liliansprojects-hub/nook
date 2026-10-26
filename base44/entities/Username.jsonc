@@ -1,0 +1,18 @@
+{
+  "name": "Username",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "username"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "name": "StickyList",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "room_id": {
+      "type": "string"
+    },
+    "block_id": {
+      "type": "string"
+    },
+    "colour": {
+      "type": "string",
+      "default": "butter"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "title"
+  ]
+}

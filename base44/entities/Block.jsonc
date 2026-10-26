@@ -1,0 +1,53 @@
+{
+  "name": "Block",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "course",
+        "unit",
+        "test",
+        "exam",
+        "project",
+        "lecture",
+        "reading",
+        "revision",
+        "hobby",
+        "music",
+        "sport",
+        "task"
+      ],
+      "default": "task"
+    },
+    "parent_id": {
+      "type": "string",
+      "description": "Id of the block this one lives inside"
+    },
+    "due_date": {
+      "type": "string",
+      "description": "ISO date, optional"
+    },
+    "done": {
+      "type": "boolean",
+      "default": false
+    },
+    "notes": {
+      "type": "string"
+    },
+    "colour": {
+      "type": "string"
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "title",
+    "kind"
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "name": "Purchase",
+  "type": "object",
+  "properties": {
+    "session_key": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "room_id": {
+      "type": "string"
+    },
+    "item_id": {
+      "type": "string"
+    },
+    "item_name": {
+      "type": "string"
+    },
+    "item_kind": {
+      "type": "string",
+      "enum": [
+        "drink",
+        "pastry"
+      ],
+      "default": "drink"
+    },
+    "price": {
+      "type": "number",
+      "default": 0
+    },
+    "unit_price": {
+      "type": "number",
+      "default": 0
+    },
+    "quantity": {
+      "type": "number",
+      "default": 1
+    },
+    "options_text": {
+      "type": "string"
+    },
+    "paid_at": {
+      "type": "string"
+    },
+    "remaining": {
+      "type": "number",
+      "default": 100
+    },
+    "desk_x": {
+      "type": "number",
+      "default": 30
+    },
+    "desk_y": {
+      "type": "number",
+      "default": 55
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "item_name"
+  ]
+}

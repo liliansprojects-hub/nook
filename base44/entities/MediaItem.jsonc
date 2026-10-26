@@ -1,0 +1,49 @@
+{
+  "name": "MediaItem",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "link",
+        "photo",
+        "video",
+        "document",
+        "whiteboard"
+      ],
+      "default": "link"
+    },
+    "url": {
+      "type": "string",
+      "description": "External link"
+    },
+    "file_uri": {
+      "type": "string",
+      "description": "Private upload reference"
+    },
+    "data": {
+      "type": "string",
+      "description": "Board strokes, stored as json so nothing has to be uploaded"
+    },
+    "note": {
+      "type": "string"
+    },
+    "room_id": {
+      "type": "string"
+    },
+    "block_id": {
+      "type": "string"
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "title",
+    "kind"
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "name": "StudySession",
+  "type": "object",
+  "properties": {
+    "session_key": {
+      "type": "string",
+      "description": "Local key that links a session to its cafe orders"
+    },
+    "room_id": {
+      "type": "string"
+    },
+    "room_name": {
+      "type": "string"
+    },
+    "room_theme": {
+      "type": "string"
+    },
+    "block_id": {
+      "type": "string",
+      "description": "Course or block this session is tagged to"
+    },
+    "block_label": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "ended_at": {
+      "type": "string"
+    },
+    "duration_seconds": {
+      "type": "number",
+      "default": 0
+    },
+    "break_seconds": {
+      "type": "number",
+      "default": 0
+    },
+    "pauses": {
+      "type": "number",
+      "default": 0
+    },
+    "coins": {
+      "type": "number",
+      "default": 0
+    },
+    "tag_colour": {
+      "type": "string"
+    },
+    "is_free": {
+      "type": "boolean",
+      "default": false
+    },
+    "deleted": {
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
