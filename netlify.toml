@@ -1,0 +1,11 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # the Base44 app this front end talks to (login, rooms, café, sessions)
+  VITE_BASE44_APP_ID = "6ad5f65588c4a5dd9c9935d0"
+
+# redirects + headers live in public/_redirects and public/_headers so they also
+# work when the dist folder is drag-and-dropped into Netlify.

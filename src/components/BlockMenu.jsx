@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useState } from 'react';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -35,14 +34,14 @@ export default function BlockMenu({ block, blocks = [], onChanged }) {
   const current = blocks.find((b) => b.id === block.parent_id);
 
   const move = async (parentId) => {
-    await db.entities.Block.update(block.id, { parent_id: parentId });
+    await base44.entities.Block.update(block.id, { parent_id: parentId });
     setMoving(false);
     onChanged?.();
   };
 
   const remove = async () => {
     if (!window.confirm(`delete ${block.title}? you can restore it in settings.`)) return;
-    await db.entities.Block.updateMany({ id: { $in: [...family] } }, { $set: { deleted: true } });
+    await base44.entities.Block.updateMany({ id: { $in: [...family] } }, { $set: { deleted: true } });
     onChanged?.();
   };
 

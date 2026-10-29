@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -43,7 +42,7 @@ export default function StudyRoom() {
       if (isFree) {
         setRoom({ id: '', name: 'free study', theme: 'oat', description: 'tag it when you finish.' });
       } else {
-        const found = await db.entities.StudyRoom.get(id);
+        const found = await base44.entities.StudyRoom.get(id);
         if (found?.deleted) navigate('/');
         setRoom(found);
       }
@@ -58,7 +57,7 @@ export default function StudyRoom() {
       const query = isFree
         ? { is_free: true, deleted: { $ne: true } }
         : { room_id: id, deleted: { $ne: true } };
-      const page = await db.entities.StudySession.filter(query, { sort: '-created_date', limit: 25 });
+      const page = await base44.entities.StudySession.filter(query, { sort: '-created_date', limit: 25 });
       setSessions(page.items || []);
     } catch (err) {
       setSessions([]);
@@ -68,7 +67,7 @@ export default function StudyRoom() {
   useEffect(() => {
     loadRoom();
     loadSessions();
-    db.entities.Block.filter({ deleted: { $ne: true } }, { sort: 'created_date', limit: 300 })
+    base44.entities.Block.filter({ deleted: { $ne: true } }, { sort: 'created_date', limit: 300 })
       .then((page) => setBlocks(page.items || []))
       .catch(() => setBlocks([]));
   }, [id]);

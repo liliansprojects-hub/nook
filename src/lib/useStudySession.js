@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
 import { loadCached, queueWrite } from '@/lib/offline';
@@ -137,7 +136,7 @@ export async function finishSession(meta = {}) {
 
   let savedId = null;
   try {
-    const created = await db.entities.StudySession.create(record);
+    const created = await base44.entities.StudySession.create(record);
     savedId = created?.id || null;
   } catch (err) {
     queueWrite({ entity: 'StudySession', op: 'create', payload: record });
@@ -146,7 +145,7 @@ export async function finishSession(meta = {}) {
   let orders = [];
   try {
     const { data } = await loadCached(`nook.orders.${s.key}`, async () => {
-      const page = await db.entities.Purchase.filter(
+      const page = await base44.entities.Purchase.filter(
         { session_key: s.key, deleted: { $ne: true } },
         { limit: 50 }
       );

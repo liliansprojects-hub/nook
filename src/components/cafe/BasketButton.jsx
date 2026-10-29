@@ -7,7 +7,7 @@ export default function BasketButton({ basket, code }) {
   const navigate = useNavigate();
   const count = countItems(basket);
   if (!count) return null;
-  const { total } = quote(basket.lines, { code });
+  const { total } = quote(basket.lines, { code, skipFree: basket.skipFree });
 
   return (
     <button

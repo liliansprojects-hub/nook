@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -46,8 +45,8 @@ export default function BlockDialog({ open, onOpenChange, kind = 'task', parent 
         notes,
         parent_id: block ? block.parent_id || '' : parent?.id || '',
       };
-      if (block) await db.entities.Block.update(block.id, payload);
-      else await db.entities.Block.create(payload);
+      if (block) await base44.entities.Block.update(block.id, payload);
+      else await base44.entities.Block.create(payload);
       onOpenChange(false);
       onSaved?.();
     } catch (err) {

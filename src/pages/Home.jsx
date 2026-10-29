@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -28,8 +27,8 @@ export default function Home() {
     'nook.home',
     async () => {
       const [roomPage, blockPage] = await Promise.all([
-        db.entities.StudyRoom.filter({ deleted: { $ne: true } }, { sort: '-created_date', limit: 50 }),
-        db.entities.Block.filter({ deleted: { $ne: true } }, { sort: 'created_date', limit: 300 }),
+        base44.entities.StudyRoom.filter({ deleted: { $ne: true } }, { sort: '-created_date', limit: 50 }),
+        base44.entities.Block.filter({ deleted: { $ne: true } }, { sort: 'created_date', limit: 300 }),
       ]);
       return { rooms: roomPage.items || [], blocks: blockPage.items || [] };
     },
@@ -41,7 +40,7 @@ export default function Home() {
 
   const loadToday = async () => {
     try {
-      const res = await db.entities.StudySession.aggregate({
+      const res = await base44.entities.StudySession.aggregate({
         query: { created_date: { $gte: startOfDay().toISOString() }, deleted: { $ne: true } },
         groupBy: 'room_id',
         sum: ['duration_seconds', 'coins'],
@@ -73,7 +72,7 @@ export default function Home() {
   const toggle = async (block) => {
     const patch = { done: !block.done };
     try {
-      await db.entities.Block.update(block.id, patch);
+      await base44.entities.Block.update(block.id, patch);
     } catch (err) {
       queueWrite({ entity: 'Block', op: 'update', payload: { id: block.id, data: patch } });
     }

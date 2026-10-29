@@ -57,7 +57,7 @@ export function dailyOffers(date = new Date()) {
 }
 
 // Prices, offers and the final total — the same maths the checkout shows.
-export function quote(lines = [], { code = '', offers } = {}) {
+export function quote(lines = [], { code = '', offers, skipFree = false } = {}) {
   const today = offers || dailyOffers();
   const featured = new Set(today.featured || []);
 
@@ -78,7 +78,8 @@ export function quote(lines = [], { code = '', offers } = {}) {
   }
 
   // A free item is not money off: it is that item, added to the order at no
-  // cost, so it still lands on your desk like anything else you bought.
+  // cost, so it still lands on your desk like anything else you bought. It can
+  // be taken out of the basket (skipFree) and then stays out.
   const freebies = [];
   if (drinks.length >= 1) {
     const best = subtotal >= today.minSpend && pastries.length === 0 ? today.giftItem : today.freeItem;
@@ -106,6 +107,9 @@ export function quote(lines = [], { code = '', offers } = {}) {
     options_text: '',
   }));
 
+  const offeredFree = skipFree ? freeLines : [];
+  const givenFree = skipFree ? [] : freeLines;
+
   const afterOffers = Math.max(0, subtotal - discounts.reduce((sum, d) => sum + d.amount, 0));
 
   const normalised = (code || '').trim().toLowerCase().replace(/\s+/g, '');
@@ -116,7 +120,7 @@ export function quote(lines = [], { code = '', offers } = {}) {
 
   const total = Math.max(0, afterOffers - (codeOk ? Math.round(afterOffers * (today.codePercent / 100)) : 0));
 
-  return { lines: [...priced, ...freeLines], subtotal, discounts, freebies: freeLines, total, codeOk };
+  return { lines: [...priced, ...givenFree], subtotal, discounts, freebies: givenFree, offeredFree, total, codeOk };
 }
 
 export function offerHeadline(item) {

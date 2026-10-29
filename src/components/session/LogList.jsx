@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -17,13 +16,13 @@ export default function LogList({ sessions = [], blocks = [], loading, onChanged
     setSelected((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
 
   const deleteOne = async (session) => {
-    await db.entities.StudySession.update(session.id, { deleted: true });
+    await base44.entities.StudySession.update(session.id, { deleted: true });
     onChanged?.();
   };
 
   const deleteSelected = async () => {
     if (!selected.length) return;
-    await db.entities.StudySession.bulkUpdate(selected.map((id) => ({ id, deleted: true })));
+    await base44.entities.StudySession.bulkUpdate(selected.map((id) => ({ id, deleted: true })));
     setSelected([]);
     setSelectMode(false);
     onChanged?.();

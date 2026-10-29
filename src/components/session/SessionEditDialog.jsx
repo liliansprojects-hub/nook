@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -29,7 +28,7 @@ export default function SessionEditDialog({ open, onOpenChange, session, blocks 
   const block = blocks.find((b) => b.id === blockId);
 
   const save = async () => {
-    await db.entities.StudySession.update(session.id, {
+    await base44.entities.StudySession.update(session.id, {
       room_name: title,
       description,
       location,

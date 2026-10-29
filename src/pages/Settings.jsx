@@ -1,5 +1,6 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { signOutLocally } from '@/lib/session';
+import { clearLocalGrants } from '@/lib/devCoins';
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import { applyAccent, writeCustom } from '@/lib/accents';
 import { useWallet } from '@/lib/useWallet';
 import { toast } from '@/components/ui/use-toast';
 
-const ENTITIES = ['Block', 'StudyRoom', 'StudySession', 'MediaItem', 'StickyList', 'Purchase'];
+const ENTITIES = ['Block', 'StudyRoom', 'StudySession', 'MediaItem', 'StickyList', 'Purchase', 'CoinGrant'];
 
 export default function Settings() {
   const [me, setMe] = useState(null);
@@ -23,12 +24,12 @@ export default function Settings() {
   const wallet = useWallet();
 
   useEffect(() => {
-    db.auth.me().then(async (user) => {
+    base44.auth.me().then(async (user) => {
       setMe(user);
       setUsername(user?.username || '');
       setAccent(user?.accent || localStorage.getItem('nook.accent') || 'coral');
       try {
-        const page = await db.entities.Username.filter({ user_id: user.id }, { limit: 1 });
+        const page = await base44.entities.Username.filter({ user_id: user.id }, { limit: 1 });
         const record = (page.items || [])[0];
         if (record) setUsername(record.username);
       } catch (err) {
@@ -41,7 +42,7 @@ export default function Settings() {
     if (!value) return;
     setNameState({ status: 'checking', message: '' });
     try {
-      const res = await db.functions.invoke('username', { action: 'check', username: value });
+      const res = await base44.functions.invoke('username', { action: 'check', username: value });
       setNameState(
         res.data?.available
           ? { status: 'ok', message: 'free' }
@@ -54,7 +55,7 @@ export default function Settings() {
 
   const saveName = async () => {
     try {
-      const res = await db.functions.invoke('username', { action: 'set', username });
+      const res = await base44.functions.invoke('username', { action: 'set', username });
       if (res.data?.error) {
         setNameState({ status: 'taken', message: res.data.error });
         return;
@@ -62,7 +63,7 @@ export default function Settings() {
       setNameState({ status: 'ok', message: 'saved' });
       setMe((prev) => ({ ...prev, username: res.data.username }));
       try {
-        await db.auth.updateMe({ username: res.data.username });
+        await base44.auth.updateMe({ username: res.data.username });
       } catch (err) {
         /* the name is stored either way */
       }
@@ -76,7 +77,7 @@ export default function Settings() {
     setAccent(id);
     applyAccent(id);
     try {
-      await db.auth.updateMe({ accent: id });
+      await base44.auth.updateMe({ accent: id });
     } catch (err) {
       /* kept on this device anyway */
     }
@@ -89,7 +90,7 @@ export default function Settings() {
 
   const sendReset = async () => {
     try {
-      await db.auth.resetPasswordRequest(me.email);
+      await base44.auth.resetPasswordRequest(me.email);
       toast({ title: 'check your email', description: 'reset link sent.' });
     } catch (err) {
       toast({ title: 'check your email', description: 'if that address exists, a link is on its way.' });
@@ -97,7 +98,7 @@ export default function Settings() {
   };
 
   const confirmPassword = async () => {
-    await db.auth.loginViaEmailPassword(me.email, password);
+    await base44.auth.loginViaEmailPassword(me.email, password);
   };
 
   const wipeData = async () => {
@@ -106,11 +107,12 @@ export default function Settings() {
       await confirmPassword();
       for (const entity of ENTITIES) {
         try {
-          await db.entities[entity].deleteMany({});
+          await base44.entities[entity].deleteMany({});
         } catch (err) {
           /* keep going */
         }
       }
+      clearLocalGrants();
       setPassword('');
       toast({ title: 'Everything is cleared', description: 'Your rooms, blocks, sessions and orders are gone.' });
       wallet.reload();
@@ -127,13 +129,12 @@ export default function Settings() {
       await confirmPassword();
       for (const entity of ENTITIES) {
         try {
-          await db.entities[entity].deleteMany({});
+          await base44.entities[entity].deleteMany({});
         } catch (err) {
           /* keep going */
         }
       }
-      await db.auth.logout();
-      window.location.href = '/login';
+      signOutLocally('/login');
     } catch (err) {
       toast({ title: 'Wrong password', description: 'Nothing was deleted.' });
       setDangerBusy('');
@@ -218,10 +219,7 @@ export default function Settings() {
           <Button
             variant="outline"
             className="h-11 rounded-full"
-            onClick={async () => {
-              await db.auth.logout();
-              window.location.href = '/login';
-            }}
+            onClick={() => signOutLocally('/login')}
           >
             <LogOut className="mr-2 h-4 w-4" /> log out
           </Button>

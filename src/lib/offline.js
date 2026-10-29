@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useCallback, useEffect, useState } from 'react';
 
 const QUEUE_KEY = 'nook.queue';
@@ -79,7 +78,7 @@ export async function flushQueue() {
   if (!q.length) return 0;
   const remaining = [];
   for (const item of q) {
-    const entity = db.entities[item.entity];
+    const entity = base44.entities[item.entity];
     try {
       if (!entity) throw new Error('unknown entity');
       if (item.op === 'create') await entity.create(item.payload);

@@ -1,0 +1,2 @@
+# single-page app: every route is served by index.html (real files are served first)
+/*    /index.html   200

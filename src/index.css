@@ -182,3 +182,9 @@
     scrollbar-width: none;
   }
 }
+
+/* café items arriving on the desk: they drop in from above (margin, not transform) */
+@keyframes deskDrop {
+  from { margin-bottom: var(--drop); opacity: 0; }
+  to { margin-bottom: 0; opacity: 1; }
+}

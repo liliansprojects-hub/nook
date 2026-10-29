@@ -1,6 +1,6 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
-import React, { useState } from "react";
+import { signOutLocally } from '@/lib/session';
+import { base44 } from '@/api/base44Client';
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,10 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
+import { toast } from "@/components/ui/use-toast";
+import { errMessage } from "@/lib/errors";
+
+const RESEND_SECONDS = 20; // matches the server-side limit in the authCode function
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -20,59 +24,81 @@ export default function Login() {
   const [sendFailed, setSendFailed] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const returnTo = safeReturnTo();
 
+  useEffect(() => {
+    if (cooldown <= 0) return undefined;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  // Asks the server to email a fresh six-digit code. Returns an error string, or "" when it went out.
+  const sendCode = async () => {
+    try {
+      const res = await base44.functions.invoke("authCode", { action: "send" });
+      if (res?.data?.error) return res.data.error;
+      setCooldown(RESEND_SECONDS);
+      return "";
+    } catch (err) {
+      // "a code was just sent" is not a failure: the earlier email is still valid
+      if (err?.status === 429 || err?.response?.status === 429) {
+        setCooldown(RESEND_SECONDS);
+        return "";
+      }
+      return errMessage(err, "We could not email your code");
+    }
+  };
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await db.auth.loginViaEmailPassword(email, password);
-      try {
-        const res = await db.functions.invoke("authCode", { action: "send" });
-        if (res.data?.error) throw new Error(res.data.error);
-        setSendFailed(false);
-      } catch (err) {
-        setSendFailed(true);
-        setError(err.message || "We could not email your code");
-      }
-      setStep("code");
+      await base44.auth.loginViaEmailPassword(email, password);
     } catch (err) {
-      setError(err.message || "Invalid email or password");
-    } finally {
+      setError(errMessage(err, "Invalid email or password"));
       setLoading(false);
+      return;
     }
+    const failure = await sendCode();
+    setSendFailed(!!failure);
+    if (failure) setError(failure);
+    setStep("code");
+    setLoading(false);
   };
 
   const handleVerify = async () => {
     setError("");
     setLoading(true);
     try {
-      const res = await db.functions.invoke("authCode", { action: "verify", code });
-      if (res.data?.error) {
+      const res = await base44.functions.invoke("authCode", { action: "verify", code });
+      if (res?.data?.error) {
         setError(res.data.error);
       } else {
         window.location.href = returnTo;
       }
     } catch (err) {
-      setError(err.message || "That code is not right");
+      setError(errMessage(err, "That code is not right"));
     } finally {
       setLoading(false);
     }
   };
 
   const handleResend = async () => {
+    if (cooldown > 0) return;
     setError("");
-    try {
-      const res = await db.functions.invoke("authCode", { action: "send" });
-      if (res.data?.error) setError(res.data.error);
-    } catch (err) {
-      setError(err.message || "Could not send another code");
+    const failure = await sendCode();
+    if (failure) {
+      setError(failure);
+      setSendFailed(true);
+    } else {
+      setSendFailed(false);
+      toast({ title: "Code sent", description: `Check ${email} for a new six-digit code.` });
     }
   };
 
   const handleGoogle = () => {
-    db.auth.loginWithProvider("google", returnTo);
+    base44.auth.loginWithProvider("google", returnTo);
   };
 
   if (step === "code") {
@@ -114,8 +140,13 @@ export default function Login() {
 
         <p className="text-center text-sm text-muted-foreground mt-4">
           Didn't get it?{" "}
-          <button onClick={handleResend} className="text-primary font-medium hover:underline">
-            Send a new code
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={cooldown > 0}
+            className="text-primary font-medium hover:underline disabled:opacity-50 disabled:no-underline"
+          >
+            {cooldown > 0 ? `Send a new code (${cooldown}s)` : "Send a new code"}
           </button>
         </p>
 
@@ -135,10 +166,7 @@ export default function Login() {
 
         <p className="text-center text-xs text-muted-foreground mt-6">
           <button
-            onClick={async () => {
-              await db.auth.logout();
-              window.location.href = "/login";
-            }}
+            onClick={() => signOutLocally("/login")}
             className="hover:underline"
           >
             Use a different account

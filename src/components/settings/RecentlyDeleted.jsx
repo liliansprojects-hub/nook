@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,7 @@ export default function RecentlyDeleted() {
     const results = await Promise.all(
       SOURCES.map(async (source) => {
         try {
-          const page = await db.entities[source.entity].filter(
+          const page = await base44.entities[source.entity].filter(
             { deleted: true },
             { sort: '-updated_date', limit: 20 }
           );
@@ -60,7 +59,7 @@ export default function RecentlyDeleted() {
       byEntity[item.entity] = byEntity[item.entity] || [];
       byEntity[item.entity].push({ id, deleted: false });
     });
-    await Promise.all(Object.entries(byEntity).map(([entity, recs]) => db.entities[entity].bulkUpdate(recs)));
+    await Promise.all(Object.entries(byEntity).map(([entity, recs]) => base44.entities[entity].bulkUpdate(recs)));
     load();
   };
 
@@ -74,7 +73,7 @@ export default function RecentlyDeleted() {
     });
     await Promise.all(
       Object.entries(byEntity).map(([entity, entityIds]) =>
-        Promise.all(entityIds.map((id) => db.entities[entity].delete(id)))
+        Promise.all(entityIds.map((id) => base44.entities[entity].delete(id)))
       )
     );
     load();

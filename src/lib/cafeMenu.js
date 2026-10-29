@@ -1,9 +1,7 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
 // The nook café menu. Every item has its own watercolour artwork, a real recipe
 // with measurements, nutrition and a note on what it does for you.
 // Prices are in study coins (1 minute studied = 8 coins).
-const ART = 'https://media.db.com/images/public/6ad5f65588c4a5dd9c9935d0/';
+const ART = 'https://media.base44.com/images/public/6ad5f65588c4a5dd9c9935d0/';
 
 export const OPTIONS = {
   ice: { label: 'ice', choices: ['0%', '25%', '50%', '100%'], default: '50%' },

@@ -1,6 +1,6 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { signOutLocally } from '@/lib/session';
+import { base44 } from '@/api/base44Client';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Home as HomeIcon, Timer, CalendarDays, History, Settings, Coffee, LayoutList, X, LogOut, Pencil } from 'lucide-react';
 
@@ -23,14 +23,13 @@ export default function Layout() {
   const [me, setMe] = useState(null);
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
-  const navigate = useNavigate();
 
   useEffect(() => {
     rememberAccent();
     flushQueue();
     const onOnline = () => flushQueue();
     window.addEventListener('online', onOnline);
-    db.auth
+    base44.auth
       .me()
       .then((user) => {
         setMe(user);
@@ -46,10 +45,7 @@ export default function Layout() {
 
   const initial = (me?.username || me?.full_name || me?.email || 'n').charAt(0).toLowerCase();
 
-  const signOut = async () => {
-    await db.auth.logout();
-    navigate('/login');
-  };
+  const signOut = () => signOutLocally('/login');
 
   return (
     <div className="min-h-screen bg-background font-body text-foreground">

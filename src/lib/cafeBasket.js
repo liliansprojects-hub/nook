@@ -6,8 +6,13 @@ const KEY = 'nook.basket.v2';
 
 export function readBasket() {
   const saved = readCache(KEY);
-  if (!saved || typeof saved !== 'object') return { roomId: '', lines: [] };
-  return { roomId: saved.roomId || '', lines: Array.isArray(saved.lines) ? saved.lines : [] };
+  if (!saved || typeof saved !== 'object') return { roomId: '', lines: [], skipFree: false };
+  return {
+    roomId: saved.roomId || '',
+    lines: Array.isArray(saved.lines) ? saved.lines : [],
+    // true once the free offer item has been taken out of the basket: it is not put back on its own
+    skipFree: !!saved.skipFree,
+  };
 }
 
 export function writeBasket(basket) {
@@ -55,7 +60,16 @@ export function removeLine(basket, key) {
 }
 
 export function clearBasket(basket) {
-  return { ...basket, lines: [] };
+  return { ...basket, lines: [], skipFree: false };
+}
+
+// Taking the free offer item out of the basket sticks until you add it back.
+export function declineFree(basket) {
+  return { ...basket, skipFree: true };
+}
+
+export function restoreFree(basket) {
+  return { ...basket, skipFree: false };
 }
 
 export function countItems(basket) {

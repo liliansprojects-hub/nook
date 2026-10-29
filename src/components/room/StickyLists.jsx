@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -21,7 +20,7 @@ export default function StickyLists({ roomId }) {
 
   const load = async () => {
     try {
-      const page = await db.entities.StickyList.filter(
+      const page = await base44.entities.StickyList.filter(
         { room_id: roomId || '', deleted: { $ne: true } },
         { sort: '-created_date', limit: 30 }
       );
@@ -38,7 +37,7 @@ export default function StickyLists({ roomId }) {
 
   const createList = async (items = [], listTitle = title || 'New list') => {
     if (!listTitle.trim()) return;
-    const created = await db.entities.StickyList.create({
+    const created = await base44.entities.StickyList.create({
       title: listTitle,
       room_id: roomId || '',
       colour: Object.keys(COLOURS)[lists.length % 5],
@@ -50,7 +49,7 @@ export default function StickyLists({ roomId }) {
 
   const update = (list) => {
     setLists((prev) => prev.map((l) => (l.id === list.id ? list : l)));
-    db.entities.StickyList.update(list.id, { items: list.items }).catch(() => {});
+    base44.entities.StickyList.update(list.id, { items: list.items }).catch(() => {});
   };
 
   const toggleItem = (list, item) => {
@@ -64,7 +63,7 @@ export default function StickyLists({ roomId }) {
 
   const removeList = async (list) => {
     setLists((prev) => prev.filter((l) => l.id !== list.id));
-    await db.entities.StickyList.update(list.id, { deleted: true });
+    await base44.entities.StickyList.update(list.id, { deleted: true });
   };
 
   return (

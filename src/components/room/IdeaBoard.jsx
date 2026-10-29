@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,7 @@ export default function IdeaBoard({ roomId, blockId }) {
   const { data, reload } = useCached(
     `nook.board.${roomId || 'free'}`,
     async () => {
-      const page = await db.entities.MediaItem.filter(
+      const page = await base44.entities.MediaItem.filter(
         { room_id: roomId || '', deleted: { $ne: true } },
         { sort: '-created_date', limit: 60 }
       );
@@ -30,7 +29,7 @@ export default function IdeaBoard({ roomId, blockId }) {
 
   const remove = async (item) => {
     setItems((prev) => prev.filter((i) => i.id !== item.id));
-    await db.entities.MediaItem.update(item.id, { deleted: true });
+    await base44.entities.MediaItem.update(item.id, { deleted: true });
   };
 
   return (

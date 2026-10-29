@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>nook · offline</title>
+    <style>
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: grid; place-items: center; padding: 24px; box-sizing: border-box;
+        background: #f4ebe2; color: #5c3a21; text-align: center;
+        font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', 'Varela Round', ui-rounded, system-ui, sans-serif;
+      }
+      .card { max-width: 340px; }
+      img { width: 96px; height: 96px; border-radius: 22px; }
+      h1 { font-size: 24px; margin: 18px 0 6px; font-weight: 400; }
+      p { margin: 0 0 22px; font-size: 14px; line-height: 1.5; opacity: .75; }
+      button {
+        border: 0; border-radius: 999px; padding: 13px 28px; font: inherit; font-size: 14px;
+        background: #7a4e29; color: #fff; cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img src="/icons/android/launchericon-192x192.png" alt="nook" />
+      <h1>you're offline</h1>
+      <p>nook can't reach the internet right now. your timer keeps running, and anything you've opened recently is still here. reconnect and try again.</p>
+      <button type="button" onclick="location.reload()">try again</button>
+    </div>
+    <script>
+      window.addEventListener('online', function () { location.reload(); });
+    </script>
+  </body>
+</html>

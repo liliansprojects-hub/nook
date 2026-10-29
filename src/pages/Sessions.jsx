@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -36,12 +35,12 @@ export default function Sessions() {
     (async () => {
       try {
         const [blockPage, roomPage] = await Promise.all([
-          db.entities.Block.filter({ deleted: { $ne: true } }, { sort: 'created_date', limit: 300 }),
-          db.entities.StudyRoom.filter({ deleted: { $ne: true } }, { sort: '-created_date', limit: 50 }),
+          base44.entities.Block.filter({ deleted: { $ne: true } }, { sort: 'created_date', limit: 300 }),
+          base44.entities.StudyRoom.filter({ deleted: { $ne: true } }, { sort: '-created_date', limit: 50 }),
         ]);
         setBlocks(blockPage.items || []);
         setRooms(roomPage.items || []);
-        const stats = await db.entities.StudySession.aggregate({
+        const stats = await base44.entities.StudySession.aggregate({
           query: { deleted: { $ne: true } },
           groupBy: 'block_id',
           sum: ['duration_seconds', 'coins'],
@@ -73,7 +72,7 @@ export default function Sessions() {
   const load = async () => {
     setLoading(true);
     try {
-      const page = await db.entities.StudySession.filter(buildQuery(), { sort: '-created_date', limit: PAGE });
+      const page = await base44.entities.StudySession.filter(buildQuery(), { sort: '-created_date', limit: PAGE });
       setSessions(page.items || []);
       setCursor(page.next_cursor || null);
       setHasMore(!!page.has_more);
@@ -85,7 +84,7 @@ export default function Sessions() {
 
   const loadMore = async () => {
     if (!cursor) return;
-    const page = await db.entities.StudySession.filter(buildQuery(), {
+    const page = await base44.entities.StudySession.filter(buildQuery(), {
       sort: '-created_date',
       limit: PAGE,
       cursor,

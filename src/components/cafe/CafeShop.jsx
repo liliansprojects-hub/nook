@@ -31,7 +31,7 @@ export default function CafeShop({ roomId }) {
   // Half-price picks are pulled to the top of the shop.
   list.sort((a, b) => Number(featuredSet.has(b.id)) - Number(featuredSet.has(a.id)));
 
-  const { total } = quote(basket.lines, { code: '' });
+  const { total } = quote(basket.lines, { code: '', skipFree: basket.skipFree });
 
   const add = (item, chosen, qty) => {
     setBasket((prev) => {

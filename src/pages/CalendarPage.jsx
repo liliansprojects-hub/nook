@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -25,7 +24,7 @@ export default function CalendarPage() {
 
   const load = async () => {
     try {
-      const page = await db.entities.Block.filter(
+      const page = await base44.entities.Block.filter(
         { due_date: { $gte: isoDate(first), $lte: isoDate(last) }, deleted: { $ne: true } },
         { sort: 'due_date', limit: 300 }
       );
@@ -51,13 +50,13 @@ export default function CalendarPage() {
   const todayIso = isoDate(new Date());
 
   const toggle = async (block) => {
-    await db.entities.Block.update(block.id, { done: !block.done });
+    await base44.entities.Block.update(block.id, { done: !block.done });
     load();
   };
 
   const addTask = async () => {
     if (!quickTitle.trim()) return;
-    await db.entities.Block.create({ title: quickTitle.trim(), kind: 'task', due_date: selected });
+    await base44.entities.Block.create({ title: quickTitle.trim(), kind: 'task', due_date: selected });
     setQuickTitle('');
     load();
   };

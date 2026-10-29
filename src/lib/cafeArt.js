@@ -1,9 +1,7 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
 // Real photographs for every menu item, shot on white — the desk drops the
 // white away with multiply blending, so a drink stands on the wood like a real
 // glass. Anything missing here falls back to the drawn artwork in cafeMenu.
-const IMG = 'https://media.db.com/images/public/6ad5f65588c4a5dd9c9935d0/';
+const IMG = 'https://media.base44.com/images/public/6ad5f65588c4a5dd9c9935d0/';
 
 export const PHOTOS = {
   espresso: IMG + 'b6d0bcfbf_generated_image.png',

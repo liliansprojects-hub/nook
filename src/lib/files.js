@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
 const cache = new Map();
@@ -7,7 +6,7 @@ const cache = new Map();
 export async function signedUrl(fileUri) {
   if (!fileUri) return null;
   if (cache.has(fileUri)) return cache.get(fileUri);
-  const { signed_url } = await db.integrations.Core.CreateFileSignedUrl({ file_uri: fileUri, expires_in: 3600 });
+  const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: fileUri, expires_in: 3600 });
   cache.set(fileUri, signed_url);
   return signed_url;
 }

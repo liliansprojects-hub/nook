@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import React, { useEffect, useState } from "react";
 import { appParams } from "@/lib/app-params";
 import { Button } from "@/components/ui/button";
@@ -117,7 +116,7 @@ export default function OAuthConsent() {
           return;
         }
         const data = await res.json();
-        // Gate on the server's auth result, NOT db.auth.isAuthenticated():
+        // Gate on the server's auth result, NOT base44.auth.isAuthenticated():
         // the SDK check runs the bearer path, so a cookie-only session (platform
         // login/SSO, or a private app with a stale localStorage token) would read
         // as signed-out and redirect — even though /consent-info just

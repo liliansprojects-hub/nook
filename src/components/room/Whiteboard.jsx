@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -32,7 +31,7 @@ export default function Whiteboard({ roomId, blockId }) {
 
   const loadBoards = async () => {
     try {
-      const page = await db.entities.MediaItem.filter(
+      const page = await base44.entities.MediaItem.filter(
         { kind: 'whiteboard', room_id: roomId || '', deleted: { $ne: true } },
         { sort: '-created_date', limit: 20 }
       );
@@ -187,7 +186,7 @@ export default function Whiteboard({ roomId, blockId }) {
     setBusy(true);
     setError('');
     try {
-      const created = await db.entities.MediaItem.create({
+      const created = await base44.entities.MediaItem.create({
         title: title.trim() || 'whiteboard',
         kind: 'whiteboard',
         data: JSON.stringify({
@@ -213,7 +212,7 @@ export default function Whiteboard({ roomId, blockId }) {
   const removeBoard = async (board) => {
     setBoards((prev) => prev.filter((b) => b.id !== board.id));
     if (savedId === board.id) setSavedId(null);
-    await db.entities.MediaItem.update(board.id, { deleted: true });
+    await base44.entities.MediaItem.update(board.id, { deleted: true });
   };
 
   return (

@@ -1,0 +1,19 @@
+{
+  "name": "CoinGrant",
+  "type": "object",
+  "properties": {
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "reason": {
+      "type": "string"
+    },
+    "granted_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "amount"
+  ]
+}

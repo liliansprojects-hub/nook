@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,20 +21,20 @@ export default function BlockSheet({ open, onOpenChange, block, children = [], o
   const due = formatDue(block.due_date);
 
   const toggle = async (item) => {
-    await db.entities.Block.update(item.id, { done: !item.done });
+    await base44.entities.Block.update(item.id, { done: !item.done });
     onChanged?.();
   };
 
   const toggleSelf = async () => {
-    await db.entities.Block.update(block.id, { done: !block.done });
+    await base44.entities.Block.update(block.id, { done: !block.done });
     onChanged?.();
   };
 
   const isTask = block.kind === 'task';
 
   const remove = async () => {
-    await db.entities.Block.update(block.id, { deleted: true });
-    for (const child of children) await db.entities.Block.update(child.id, { deleted: true });
+    await base44.entities.Block.update(block.id, { deleted: true });
+    for (const child of children) await base44.entities.Block.update(child.id, { deleted: true });
     onOpenChange(false);
     onChanged?.();
   };

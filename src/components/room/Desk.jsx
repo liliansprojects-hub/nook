@@ -1,40 +1,89 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+import { base44 } from '@/api/base44Client';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useEffect, useRef, useState } from 'react';
-
-import { MoreHorizontal, Trash2 } from 'lucide-react';
+import { Check, Trash2, X } from 'lucide-react';
 import { useCached, queueWrite } from '@/lib/offline';
 import { useStudySession } from '@/lib/useStudySession';
 import { menuItem } from '@/lib/cafeMenu';
-import ItemArt from '@/components/cafe/ItemArt';
+import { PHOTOS } from '@/lib/cafeArt';
+import { useCutouts } from '@/lib/cutout';
+import {
+  BASE_H,
+  FAR,
+  GAP,
+  PAD_BOTTOM,
+  clampSpot,
+  deskHeight,
+  moveWithCollision,
+  settle,
+  tableInset,
+  toPct,
+  toPx,
+} from '@/lib/deskLayout';
 import { cn } from '@/lib/utils';
 
-// A brown wooden table in perspective. Food and drink sit straight on the wood
-// with no card behind them, and the finished part of a cup sinks into the grain.
+// A wooden table. Every purchase arrives on it with its background removed, can be
+// dragged anywhere on the wood, and never overlaps another item (2px apart at most).
 const WOOD = '#E2C49F';
 const WOOD_EDGE = '#D0AE87';
 const WOOD_GRAIN = '#D8BA95';
-const LEVEL_INTO_WOOD = { background: '#DEC7A8', mixBlendMode: 'multiply' };
-const DRAIN = 16; // percent finished per second of holding on
+const DRAIN = 45; // percent finished per second of holding on (about 2 seconds for a full cup)
+const HOLD_MS = 130; // how long to keep a finger down before it counts as "holding"
+const MOVE_SLOP = 6;
+const PROG_H = 8; // room under each item for its progress bar
+const MAX_ITEMS = 80;
+const CORNER = 44; // the delete button's keep-out square in the table's corner
+const FIT = { drink: { w: 64, h: 92 }, pastry: { w: 84, h: 62 } };
 
-// Where an item may sit, in percent of the desk box: the whole tabletop and
-// nothing off its edge. The anchor is the middle of the item itself.
-const TABLE_X = [10, 90];
-const TABLE_Y = [55, 72];
-const onWood = (value, [min, max]) => Math.min(max, Math.max(min, value));
-const itemSize = (pastry) => (pastry ? { w: 92, h: 74 } : { w: 76, h: 104 });
+const sourceFor = (item) => {
+  const line = menuItem(item.item_id);
+  return PHOTOS[item.item_id] || line?.art || '';
+};
+
+// art size from the cut-out's real proportions
+function artSize(kind, aspect) {
+  const box = kind === 'pastry' ? FIT.pastry : FIT.drink;
+  if (!aspect) return box;
+  let w = box.w;
+  let h = w / aspect;
+  if (h > box.h) {
+    h = box.h;
+    w = h * aspect;
+  }
+  return { w: Math.max(28, Math.round(w)), h: Math.max(28, Math.round(h)) };
+}
+
+// the eaten / drunk part fades out; drinks empty from the top, pastries from the left
+function levelMask(kind, gone) {
+  if (gone <= 0) return {};
+  const dir = kind === 'pastry' ? 'to right' : 'to bottom';
+  const g = `linear-gradient(${dir}, rgba(0,0,0,0.14) 0, rgba(0,0,0,0.14) ${gone}%, #000 ${gone}%)`;
+  return { maskImage: g, WebkitMaskImage: g };
+}
 
 export default function Desk({ roomId }) {
   const { session } = useStudySession();
   const sessionKey = session?.key || '';
   const [items, setItems] = useState([]);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [pos, setPos] = useState({}); // id -> { x, b } in px
+  const [width, setWidth] = useState(360);
   const [hold, setHold] = useState(null);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+
+  const deskRef = useRef(null);
+  const itemsRef = useRef([]);
+  const posRef = useRef({});
+  const sizesRef = useRef({});
   const dragging = useRef(null);
   const holdTimer = useRef(null);
-  const drainTimer = useRef(null);
+  const drainRaf = useRef(null);
   const moved = useRef(false);
-  const deskRef = useRef(null);
+  const busy = useRef(false);
+  const pending = useRef(null);
+
+  itemsRef.current = items;
+  posRef.current = pos;
 
   const cacheKey = roomId ? `nook.desk.${roomId}` : `nook.desk.free.${sessionKey}`;
 
@@ -45,33 +94,108 @@ export default function Desk({ roomId }) {
       const query = roomId
         ? { room_id: roomId, deleted: { $ne: true }, remaining: { $gt: 0 } }
         : { session_key: sessionKey, deleted: { $ne: true }, remaining: { $gt: 0 } };
-      const page = await db.entities.Purchase.filter(query, { sort: '-created_date', limit: 10 });
+      const page = await base44.entities.Purchase.filter(query, { sort: '-created_date', limit: MAX_ITEMS });
       return page.items || [];
     },
     [roomId, sessionKey]
   );
 
+  // new data is held back while an item is being dragged or held, then applied on release
   useEffect(() => {
-    setItems(Array.isArray(data) ? data : []);
+    const next = Array.isArray(data) ? data : [];
+    if (busy.current) pending.current = next;
+    else setItems(next);
   }, [data]);
 
   useEffect(() => {
-    const unsubscribe = db.entities.Purchase.subscribe(() => reload());
-    return unsubscribe;
+    let unsubscribe;
+    try {
+      unsubscribe = base44.entities.Purchase.subscribe(() => reload());
+    } catch {
+      /* realtime unavailable (offline): the desk still loads on open */
+    }
+    return () => unsubscribe?.();
   }, [reload]);
 
-  // every change is written at once, and queued if the signal drops
-  const write = (id, patch) => {
+  useEffect(() => {
+    const el = deskRef.current;
+    if (!el) return undefined;
+    const measure = () => setWidth(Math.max(240, Math.round(el.getBoundingClientRect().width)));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // background removal for every item on the desk
+  const sources = useMemo(() => {
+    const map = {};
+    for (const item of items) if (!map[item.item_id]) map[item.item_id] = sourceFor(item);
+    return map;
+  }, [items]);
+  const cutouts = useCutouts(sources);
+  const allResolved = items.every((i) => !sources[i.item_id] || cutouts[i.item_id]);
+
+  // footprint of every item: its art plus the strip for its progress bar
+  const sizes = useMemo(() => {
+    const out = {};
+    for (const item of items) {
+      const art = artSize(item.item_kind, cutouts[item.item_id]?.aspect);
+      out[item.id] = { w: art.w, h: art.h + PROG_H, artH: art.h };
+    }
+    return out;
+  }, [items, cutouts]);
+  sizesRef.current = sizes;
+
+  const cornerRect = useMemo(() => ({ x: width - 6 - CORNER / 2, b: 6, w: CORNER, h: CORNER }), [width]);
+
+  const write = useCallback((id, patch) => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-    db.entities.Purchase.update(id, patch).catch(() =>
+    base44.entities.Purchase.update(id, patch).catch(() =>
       queueWrite({ entity: 'Purchase', op: 'update', payload: { id, data: patch } })
     );
+  }, []);
+
+  // arrival and resize: find every item a free spot. Items that had to move are saved there.
+  const layoutKey = `${items.map((i) => i.id).join(',')}|${width}|${items.map((i) => `${sizes[i.id]?.w}x${sizes[i.id]?.h}`).join(',')}`;
+  useEffect(() => {
+    if (busy.current) return;
+    const ordered = [...items].sort((a, b) => String(a.created_date || '').localeCompare(String(b.created_date || '')));
+    const input = ordered.map((i) => ({ id: i.id, ...sizes[i.id], ...toPx(i, width) }));
+    const out = settle(input, width, [cornerRect]);
+    setPos(out);
+    if (!allResolved) return;
+    for (const i of ordered) {
+      const want = toPx(i, width);
+      const got = out[i.id];
+      if (got && (Math.abs(got.x - want.x) > 1 || Math.abs(got.b - want.b) > 1)) {
+        const patch = toPct(got, width);
+        base44.entities.Purchase.update(i.id, patch).catch(() =>
+          queueWrite({ entity: 'Purchase', op: 'update', payload: { id: i.id, data: patch } })
+        );
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutKey, allResolved]);
+
+  const deskH = deskHeight(items.map((i) => ({ ...(pos[i.id] || { b: PAD_BOTTOM }), h: sizes[i.id]?.h || 0 })));
+  const tableTop = FAR;
+  const farB = deskH - FAR;
+  const sideInset = Math.round(tableInset(farB));
+
+  const releaseBusy = () => {
+    busy.current = false;
+    if (pending.current) {
+      setItems(pending.current);
+      pending.current = null;
+    }
   };
 
   const stopDrain = () => {
-    if (drainTimer.current) {
-      clearInterval(drainTimer.current);
-      drainTimer.current = null;
+    if (drainRaf.current !== null) {
+      cancelAnimationFrame(drainRaf.current);
+      drainRaf.current = null;
     }
     setHold(null);
   };
@@ -80,143 +204,218 @@ export default function Desk({ roomId }) {
     stopDrain();
     setItems((prev) => prev.filter((i) => i.id !== item.id));
     write(item.id, { remaining: 0 });
+    releaseBusy();
   };
 
-  // held down: the ring counts the seconds and the cup empties as you hold
+  // held down: the ring and bar run as you hold and the cup empties in about two seconds
   const startDrain = (item) => {
-    const from = item.remaining ?? 100;
-    const startedAt = Date.now();
+    busy.current = true;
+    const from = itemsRef.current.find((i) => i.id === item.id)?.remaining ?? 100;
+    const startedAt = performance.now();
     setHold({ id: item.id, seconds: 0 });
-    drainTimer.current = setInterval(() => {
-      const seconds = (Date.now() - startedAt) / 1000;
+    const tick = (now) => {
+      const seconds = (now - startedAt) / 1000;
       const remaining = Math.max(0, from - seconds * DRAIN);
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, remaining } : i)));
       setHold({ id: item.id, seconds });
-      if (remaining <= 0) finish(item);
-    }, 100);
+      if (remaining <= 0) {
+        finish(item);
+        return;
+      }
+      drainRaf.current = requestAnimationFrame(tick);
+    };
+    drainRaf.current = requestAnimationFrame(tick);
   };
+
+  const toggleSelected = (id) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const onPointerDown = (e, item) => {
     if (e.target.closest('[data-desk-ui]')) return;
+    if (selecting) return;
     moved.current = false;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragging.current = {
-      id: item.id,
-      startX: e.clientX,
-      startY: e.clientY,
-      x: onWood(item.desk_x ?? 30, TABLE_X),
-      y: onWood(item.desk_y ?? 55, TABLE_Y),
-    };
+    busy.current = true;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const at = posRef.current[item.id] || toPx(item, width);
+    dragging.current = { id: item.id, startX: e.clientX, startY: e.clientY, x: at.x, b: at.b };
     holdTimer.current = setTimeout(() => {
       dragging.current = null;
       startDrain(item);
-    }, 180);
+    }, HOLD_MS);
   };
 
   const onPointerMove = (e) => {
     const drag = dragging.current;
-    if (!drag || !deskRef.current) return;
-    const rect = deskRef.current.getBoundingClientRect();
+    if (!drag) return;
     const dx = e.clientX - drag.startX;
     const dy = e.clientY - drag.startY;
-    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
-      moved.current = true;
-      clearTimeout(holdTimer.current);
-    }
-    // free across the tabletop, never past its edge
-    const x = onWood(drag.x + (dx / rect.width) * 100, TABLE_X);
-    const y = onWood(drag.y + (dy / rect.height) * 100, TABLE_Y);
-    setItems((prev) => prev.map((i) => (i.id === drag.id ? { ...i, desk_x: x, desk_y: y } : i)));
+    if (!moved.current && Math.abs(dx) <= MOVE_SLOP && Math.abs(dy) <= MOVE_SLOP) return;
+    moved.current = true;
+    clearTimeout(holdTimer.current);
+    const size = sizesRef.current[drag.id];
+    if (!size) return;
+    const others = itemsRef.current
+      .filter((i) => i.id !== drag.id && posRef.current[i.id] && sizesRef.current[i.id])
+      .map((i) => ({ ...posRef.current[i.id], w: sizesRef.current[i.id].w, h: sizesRef.current[i.id].h }));
+    const H = deskHeight(
+      itemsRef.current.map((i) => ({ ...(posRef.current[i.id] || { b: PAD_BOTTOM }), h: sizesRef.current[i.id]?.h || 0 }))
+    );
+    const from = posRef.current[drag.id] || { x: drag.x, b: drag.b };
+    const to = clampSpot({ x: drag.x + dx, b: drag.b - dy }, size, width, H);
+    const next = moveWithCollision(from, to, size, [...others, cornerRect], width, H, GAP);
+    setPos((prev) => ({ ...prev, [drag.id]: next }));
   };
 
   const onPointerUp = (e, item) => {
     clearTimeout(holdTimer.current);
-    const wasDraining = !!drainTimer.current;
+    const wasDraining = drainRaf.current !== null;
     const drag = dragging.current;
     dragging.current = null;
 
     if (wasDraining) {
       stopDrain();
-      const current = items.find((i) => i.id === item.id);
+      const current = itemsRef.current.find((i) => i.id === item.id);
       if (current) write(item.id, { remaining: Math.max(0, Math.round(current.remaining ?? 100)) });
+      releaseBusy();
       return;
     }
 
-    if (!drag || !moved.current) return;
-    const current = items.find((i) => i.id === item.id);
-    if (current) write(item.id, { desk_x: current.desk_x, desk_y: current.desk_y });
+    if (drag && moved.current) {
+      const at = posRef.current[item.id];
+      if (at) write(item.id, toPct(at, width));
+    }
+    releaseBusy();
   };
 
-  const remove = (item) => {
-    setMenuOpen(false);
+  const onPointerCancel = () => {
+    clearTimeout(holdTimer.current);
+    dragging.current = null;
     stopDrain();
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
-    db.entities.Purchase.update(item.id, { deleted: true }).catch(() =>
-      queueWrite({ entity: 'Purchase', op: 'update', payload: { id: item.id, data: { deleted: true } } })
-    );
+    releaseBusy();
   };
+
+  // ---- select and delete ----
+  const exitSelecting = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+
+  const deleteSelected = () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    setItems((prev) => prev.filter((i) => !selected.has(i.id)));
+    for (const id of ids) {
+      base44.entities.Purchase.update(id, { deleted: true }).catch(() =>
+        queueWrite({ entity: 'Purchase', op: 'update', payload: { id, data: { deleted: true } } })
+      );
+    }
+    exitSelecting();
+  };
+
+  const allSelected = items.length > 0 && selected.size === items.length;
 
   return (
     <div>
-      <h3 className="mb-2 font-heading text-sm font-black">desk</h3>
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="font-heading text-sm font-black">desk</h3>
+        {selecting && (
+          <p className="text-[11px] font-bold text-muted-foreground">
+            {selected.size === 0 ? 'tap items to select' : `${selected.size} selected`}
+          </p>
+        )}
+      </div>
 
-      <div ref={deskRef} className="relative h-[340px] overflow-hidden rounded-[1.8rem] border border-brand-soft bg-background">
-        <div className="absolute inset-x-0 bottom-0 h-[70%] bg-secondary/50" />
+      <div
+        ref={deskRef}
+        data-testid="desk"
+        className="relative overflow-hidden rounded-[1.8rem] border border-brand-soft bg-background transition-[height] duration-300"
+        style={{ height: Math.max(BASE_H, deskH) }}
+      >
+        <div className="absolute inset-x-0 bottom-0 bg-secondary/50" style={{ top: tableTop - 24 }} />
 
+        {/* the tabletop: far edge at the top, flaring out to the full width in front */}
         <div
-          className="absolute inset-x-3 bottom-[-6%] h-[90%] origin-bottom"
+          data-testid="table"
+          className="absolute inset-x-0 bottom-0"
           style={{
-            transform: 'perspective(900px) rotateX(30deg)',
+            top: tableTop,
             background: WOOD,
-            boxShadow: `inset 0 0 0 1px ${WOOD_EDGE}`,
+            clipPath: `polygon(${sideInset}px 0, calc(100% - ${sideInset}px) 0, 100% 100%, 0 100%)`,
           }}
         >
-          {[18, 42, 66, 88].map((top) => (
-            <span key={top} className="absolute left-0 right-0 h-[2px]" style={{ top: `${top}%`, background: WOOD_GRAIN, opacity: 0.8 }} />
+          {[0.2, 0.42, 0.64, 0.84].map((f) => (
+            <span
+              key={f}
+              className="absolute left-0 right-0 h-[2px]"
+              style={{ top: `${f * 100}%`, background: WOOD_GRAIN, opacity: 0.8 }}
+            />
           ))}
+          <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: WOOD_EDGE }} />
         </div>
 
         {items.length === 0 && (
-          <p className="absolute inset-x-0 top-[16%] px-10 text-center text-[12px] font-bold text-muted-foreground">
-            empty.
-          </p>
+          <p className="absolute inset-x-0 top-[16%] px-10 text-center text-[12px] font-bold text-muted-foreground">empty.</p>
         )}
 
         {items.map((item) => {
-          const line = menuItem(item.item_id) || { id: item.item_id, kind: item.item_kind, name: item.item_name };
+          const at = pos[item.id];
+          const size = sizes[item.id];
+          if (!at || !size) return null;
+          const cut = cutouts[item.item_id];
+          const src = sourceFor(item);
           const level = item.remaining ?? 100;
-          const isHolding = hold?.id === item.id;
-          const pastry = item.item_kind === 'pastry';
           const gone = Math.round(100 - level);
-          // nothing here may transform the item: a transform would cut the art
-          // off from the wood behind it and leave its white backdrop showing.
-          const size = itemSize(pastry);
+          const isHolding = hold?.id === item.id;
+          const isSelected = selected.has(item.id);
+          const pastry = item.item_kind === 'pastry';
+          const fresh = Date.now() - Date.parse(item.paid_at || item.created_date || 0) < 12000;
+          const artStyle = cut?.cut
+            ? { filter: 'drop-shadow(0 2px 2px rgba(70,40,10,0.35))', ...levelMask(item.item_kind, gone) }
+            : { mixBlendMode: 'multiply', filter: 'contrast(1.12) brightness(1.04)', ...levelMask(item.item_kind, gone) };
+          const bottom = at.b;
+
           return (
             <div
               key={item.id}
-              className="absolute touch-none select-none"
+              data-testid="desk-item"
+              data-item-id={item.id}
+              className={cn('group absolute select-none', selecting ? 'cursor-pointer' : 'cursor-grab touch-none active:cursor-grabbing')}
               style={{
-                left: `${onWood(item.desk_x ?? 30, TABLE_X)}%`,
-                top: `${onWood(item.desk_y ?? 55, TABLE_Y)}%`,
-                marginLeft: -size.w / 2,
-                marginTop: -size.h / 2,
+                left: at.x - size.w / 2,
+                bottom,
+                width: size.w,
+                height: size.h,
+                zIndex: dragging.current?.id === item.id || isHolding ? 10 : 1,
+                // arrival drop uses margin, never a transform: a transform would isolate the item from the wood
+                '--drop': `${size.h + 70}px`,
+                animation: fresh ? 'deskDrop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both' : undefined,
               }}
+              onClick={() => selecting && toggleSelected(item.id)}
               onPointerDown={(e) => onPointerDown(e, item)}
               onPointerMove={onPointerMove}
               onPointerUp={(e) => onPointerUp(e, item)}
-              onPointerCancel={() => {
-                clearTimeout(holdTimer.current);
-                stopDrain();
-              }}
+              onPointerCancel={onPointerCancel}
               onContextMenu={(e) => e.preventDefault()}
             >
-              <div
-                className={cn(
-                  'relative cursor-grab active:cursor-grabbing',
-                  pastry ? 'h-[74px] w-[92px]' : 'h-[104px] w-[76px]'
+              <div className="relative" style={{ width: size.w, height: size.artH }}>
+                {src ? (
+                  <img
+                    src={cut?.url || src}
+                    alt={item.item_name || ''}
+                    draggable={false}
+                    className="h-full w-full object-contain"
+                    style={artStyle}
+                  />
+                ) : (
+                  <span className="grid h-full w-full place-items-center rounded-[0.8rem] bg-secondary px-1 text-center text-[9px] font-bold text-muted-foreground">
+                    {item.item_name}
+                  </span>
                 )}
-              >
-                <ItemArt item={line} remaining={level} reflection={!pastry} levelStyle={LEVEL_INTO_WOOD} className="h-full w-full" />
 
                 {isHolding && (
                   <svg viewBox="0 0 100 100" className="pointer-events-none absolute -inset-2 -rotate-90">
@@ -236,75 +435,84 @@ export default function Desk({ roomId }) {
                 )}
 
                 {isHolding && (
-                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-full bg-foreground px-2 py-0.5 text-[9px] font-bold text-background">
+                  <span className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-foreground px-2 py-0.5 text-[9px] font-bold text-background">
                     {hold.seconds.toFixed(1)}s
                   </span>
                 )}
 
+                {!isHolding && (
+                  <span className="pointer-events-none absolute -top-6 left-1/2 hidden max-w-[140px] -translate-x-1/2 truncate rounded-full bg-foreground px-2 py-0.5 text-[9px] font-bold text-background group-hover:block">
+                    {item.item_name}
+                  </span>
+                )}
+
                 {(item.quantity || 1) > 1 && (
-                  <span className="absolute -right-2 top-0 rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-bold text-brand-ink">
+                  <span className="pointer-events-none absolute -right-1 top-0 rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-bold text-brand-ink">
                     ×{item.quantity}
                   </span>
                 )}
+
+                {selecting && (
+                  <span
+                    className={cn(
+                      'pointer-events-none absolute -left-1 -top-1 grid h-5 w-5 place-items-center rounded-full border-2',
+                      isSelected ? 'border-brand bg-brand text-brand-ink' : 'border-foreground/40 bg-card/90 text-transparent'
+                    )}
+                  >
+                    <Check className="h-3 w-3" />
+                  </span>
+                )}
+                {selecting && isSelected && <span className="pointer-events-none absolute inset-0 rounded-[0.8rem] ring-2 ring-brand" />}
               </div>
 
-              <p className="mt-0.5 max-w-[100px] truncate text-center text-[9px] font-bold text-muted-foreground">{item.item_name}</p>
-
-              {gone > 0 && (
-                <div className="mx-auto mt-1 w-[64px]">
-                  <div className="h-1.5 overflow-hidden rounded-full bg-foreground/15">
-                    <div className="h-full rounded-full bg-brand" style={{ width: `${gone}%` }} />
-                  </div>
-                  <p className="mt-0.5 text-center text-[9px] font-bold text-muted-foreground">
-                    {gone}% {pastry ? 'eaten' : 'drunk'}
-                  </p>
-                </div>
-              )}
+              <div className="mt-[2px] h-[6px] overflow-hidden rounded-full bg-foreground/15" style={{ opacity: gone > 0 ? 1 : 0 }}>
+                <div className="h-full rounded-full bg-brand" style={{ width: `${gone}%` }} />
+              </div>
             </div>
           );
         })}
 
-        {menuOpen && <div data-desk-ui className="absolute inset-0 z-10" onClick={() => setMenuOpen(false)} />}
+        {/* the delete button sits in the table's corner; items keep out of it */}
+        <button
+          type="button"
+          data-desk-ui
+          data-testid="desk-select"
+          onClick={() => (selecting ? exitSelecting() : setSelecting(true))}
+          aria-label={selecting ? 'stop selecting' : 'select items to delete'}
+          aria-pressed={selecting}
+          className={cn(
+            'absolute z-20 grid place-items-center rounded-full border shadow-sm',
+            selecting ? 'border-brand bg-brand text-brand-ink' : 'border-border bg-card/90 text-muted-foreground'
+          )}
+          style={{ right: 6, bottom: 6, width: CORNER, height: CORNER }}
+        >
+          {selecting ? <X className="h-5 w-5" /> : <Trash2 className="h-5 w-5" />}
+        </button>
+      </div>
 
-        <div className="absolute right-3 top-3 z-20">
+      {selecting && (
+        <div data-desk-ui className="mt-2 flex items-center gap-2">
           <button
             type="button"
-            data-desk-ui
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label="items on the desk"
-            aria-expanded={menuOpen}
-            className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card/90 text-muted-foreground"
+            data-testid="desk-select-all"
+            disabled={items.length === 0}
+            onClick={() => setSelected(allSelected ? new Set() : new Set(items.map((i) => i.id)))}
+            className="rounded-full bg-secondary px-4 py-2.5 text-[12px] font-bold text-foreground disabled:opacity-50"
           >
-            <MoreHorizontal className="h-4 w-4" />
+            {allSelected ? 'clear' : 'select all'}
           </button>
-
-          {menuOpen && (
-            <div
-              data-desk-ui
-              className="absolute right-0 top-10 w-[196px] animate-fade-up rounded-[1.3rem] border border-border bg-card p-2 shadow-lift"
-            >
-              <p className="mb-1.5 px-1 text-[10px] font-bold tracking-[0.14em] text-muted-foreground">remove</p>
-              {items.length === 0 ? (
-                <p className="px-1 pb-1 text-[11px] text-muted-foreground">nothing on the desk.</p>
-              ) : (
-                <div className="max-h-[190px] space-y-1 overflow-y-auto">
-                  {items.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => remove(item)}
-                      className="flex w-full items-center gap-2 rounded-full px-2.5 py-2 text-left text-[11px] font-bold hover:bg-secondary"
-                    >
-                      <span className="min-w-0 flex-1 truncate">{item.item_name}</span>
-                      <Trash2 className="h-3.5 w-3.5 shrink-0 text-destructive" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          <button
+            type="button"
+            data-testid="desk-delete"
+            disabled={selected.size === 0}
+            onClick={deleteSelected}
+            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-destructive px-4 py-2.5 text-[12px] font-bold text-destructive-foreground disabled:opacity-40"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {selected.size > 0 ? `delete ${selected.size}` : 'delete'}
+          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }

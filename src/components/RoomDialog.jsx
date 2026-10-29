@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -30,8 +29,8 @@ export default function RoomDialog({ open, onOpenChange, room = null, onSaved, o
     setBusy(true);
     try {
       const saved = room
-        ? await db.entities.StudyRoom.update(room.id, { name: name.trim(), theme, description })
-        : await db.entities.StudyRoom.create({ name: name.trim(), theme, description });
+        ? await base44.entities.StudyRoom.update(room.id, { name: name.trim(), theme, description })
+        : await base44.entities.StudyRoom.create({ name: name.trim(), theme, description });
       onOpenChange(false);
       onSaved?.(saved);
     } finally {
@@ -41,7 +40,7 @@ export default function RoomDialog({ open, onOpenChange, room = null, onSaved, o
 
   const remove = async () => {
     if (!room) return;
-    await db.entities.StudyRoom.update(room.id, { deleted: true });
+    await base44.entities.StudyRoom.update(room.id, { deleted: true });
     onOpenChange(false);
     onDeleted?.();
   };

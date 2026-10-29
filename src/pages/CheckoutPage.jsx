@@ -1,14 +1,15 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
-import { Check, ChevronLeft, Coins, CreditCard, Loader2, Minus, Plus, Tag, Trash2 } from 'lucide-react';
-import { readBasket, writeBasket, setQty, removeLine, clearBasket, countItems } from '@/lib/cafeBasket';
+import { Check, ChevronLeft, Coins, CreditCard, Gift, Loader2, Lock, Minus, Plus, Tag, Trash2 } from 'lucide-react';
+import { readBasket, writeBasket, setQty, removeLine, clearBasket, countItems, declineFree, restoreFree } from '@/lib/cafeBasket';
 import { dailyOffers, quote } from '@/lib/cafeOffers';
 import { useWallet } from '@/lib/useWallet';
-import { getActiveSession } from '@/lib/useStudySession';
+import { getActiveSession, useStudySession } from '@/lib/useStudySession';
+import { grantDevCoins, isDevCode } from '@/lib/devCoins';
+import { toast } from '@/components/ui/use-toast';
 import ItemArt from '@/components/cafe/ItemArt';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import RoomDialog from '@/components/RoomDialog';
@@ -27,18 +28,38 @@ export default function CheckoutPage() {
   const [sendTo, setSendTo] = useState(() => readBasket().roomId || getActiveSession()?.roomId || '');
   const wallet = useWallet();
   const offers = dailyOffers();
+  // the café only serves while a study room is open (a running session)
+  const { active: roomOpen, session: openSession } = useStudySession();
 
   useEffect(() => {
-    db.entities.StudyRoom
+    base44.entities.StudyRoom
       .filter({ deleted: { $ne: true } }, { sort: '-created_date', limit: 50 })
       .then((page) => setRooms(page.items || []))
       .catch(() => setRooms([]));
   }, []);
 
   const sendToName = rooms.find((r) => r.id === sendTo)?.name || 'free study';
-  const openRoomId = getActiveSession()?.roomId || '';
+  const openRoomId = openSession?.roomId || '';
   const openRoom = rooms.find((r) => r.id === openRoomId);
   const otherRooms = rooms.filter((r) => r.id !== openRoomId);
+
+  const applyCode = async () => {
+    const value = code.trim();
+    if (!value) return;
+    if (isDevCode(value)) {
+      // hidden developer code: coins, not a discount
+      setCode('');
+      setApplied('');
+      const grant = await grantDevCoins();
+      wallet.reload();
+      toast({
+        title: `+${grant.amount} coins`,
+        description: grant.savedTo === 'device' ? 'Saved on this device for now.' : undefined,
+      });
+      return;
+    }
+    setApplied(value);
+  };
 
   const choose = (id) => {
     setSendTo(id);
@@ -49,13 +70,18 @@ export default function CheckoutPage() {
     setBasket(writeBasket(next));
   };
 
-  const { lines, subtotal, discounts, total, codeOk } = quote(basket.lines, { code: applied });
+  const { lines, subtotal, discounts, total, codeOk, offeredFree } = quote(basket.lines, { code: applied, skipFree: basket.skipFree });
   const balance = wallet.balance ?? wallet.earned - wallet.spent;
   const left = balance - total;
   const backTo = sendTo ? `/room/${sendTo}` : '/cafe';
 
   const pay = async () => {
     const session = getActiveSession();
+    if (!session) {
+      // the session ended while the payment sheet was open
+      toast({ title: 'No study room is open', description: 'Start a session in a study room to order from the café.' });
+      return null;
+    }
     const orders = lines.map((line) => ({
       session_key: session?.key || '',
       session_id: '',
@@ -69,11 +95,11 @@ export default function CheckoutPage() {
       options_text: line.options_text || '',
       paid_at: new Date().toISOString(),
       remaining: 100,
-      desk_x: 16 + Math.round(Math.random() * 66),
-      desk_y: 32 + Math.round(Math.random() * 28),
+      desk_x: 14 + Math.round(Math.random() * 72),
+      desk_y: 94, // arrives near the front edge; the desk then finds each item a free spot
     }));
 
-    await db.entities.Purchase.bulkCreate(orders);
+    await base44.entities.Purchase.bulkCreate(orders);
     wallet.reload();
     update(clearBasket(basket));
     return { orders, total };
@@ -142,7 +168,17 @@ export default function CheckoutPage() {
                   </p>
                 </div>
                 {line.free ? (
-                  <span className="text-[12px] font-bold text-brand">+0</span>
+                  <>
+                    <span className="text-[12px] font-bold text-brand">+0</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove free ${line.name}`}
+                      className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground"
+                      onClick={() => update(declineFree(basket))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
                 ) : (
                   <>
                     <div className="flex items-center gap-1 rounded-full bg-secondary p-1">
@@ -179,6 +215,20 @@ export default function CheckoutPage() {
             ))}
           </div>
 
+          {offeredFree.length > 0 && (
+            <div className="surface flex items-center gap-3 p-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[0.8rem] bg-brand-soft text-brand-ink">
+                <Gift className="h-4 w-4" />
+              </span>
+              <p className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
+                free {offeredFree[0].name} · {offeredFree[0].free_reason}
+              </p>
+              <Button variant="secondary" className="h-9 rounded-full px-4 text-[12px] font-medium" onClick={() => update(restoreFree(basket))}>
+                add it
+              </Button>
+            </div>
+          )}
+
           <div className="surface p-4">
             <p className="mb-2 text-[11px] font-bold tracking-[0.14em] text-muted-foreground">send to</p>
             <div className="flex flex-wrap gap-2">
@@ -207,13 +257,16 @@ export default function CheckoutPage() {
               <input
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') applyCode();
+                }}
                 placeholder={`code (today: ${offers.code})`}
                 className="h-10 min-w-[140px] flex-1 rounded-full border border-input bg-card px-3.5 text-[12px] outline-none focus:border-brand"
               />
               <Button
                 className="h-10 rounded-full px-4 font-medium"
                 variant={codeOk ? 'secondary' : 'default'}
-                onClick={() => setApplied(code.trim())}
+                onClick={applyCode}
               >
                 {codeOk ? 'applied' : 'apply'}
               </Button>
@@ -251,13 +304,27 @@ export default function CheckoutPage() {
             </div>
           </div>
 
+          {!roomOpen && (
+            <div className="surface flex items-center gap-3 p-4">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[0.8rem] bg-secondary text-muted-foreground">
+                <Lock className="h-4 w-4" />
+              </span>
+              <p className="min-w-0 flex-1 text-[12px] text-muted-foreground">
+                no study room is open. start a session in a room, then come back to order.
+              </p>
+              <Link to="/" className="shrink-0 rounded-full bg-secondary px-3.5 py-2 text-[12px] text-foreground">
+                rooms
+              </Link>
+            </div>
+          )}
+
           <Button
             className={cn('h-14 w-full rounded-full font-medium')}
-            disabled={left < 0 || total === 0}
-            onClick={() => setPaying(true)}
+            disabled={!roomOpen || left < 0 || total === 0}
+            onClick={() => roomOpen && setPaying(true)}
           >
             <CreditCard className="mr-2 h-4 w-4" />
-            {left < 0 ? `need ${Math.abs(left)} more coins` : `pay ${total} coins`}
+            {!roomOpen ? 'open a study room to order' : left < 0 ? `need ${Math.abs(left)} more coins` : `pay ${total} coins`}
           </Button>
         </>
       )}
@@ -270,7 +337,7 @@ export default function CheckoutPage() {
         onConfirm={async () => {
           const receipt = await pay();
           setPaying(false);
-          setDone(receipt);
+          if (receipt) setDone(receipt);
         }}
       />
 

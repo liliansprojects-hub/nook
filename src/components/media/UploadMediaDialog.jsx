@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -46,7 +45,7 @@ export default function UploadMediaDialog({ open, onOpenChange, roomId, blockId,
           setBusy(false);
           return;
         }
-        const { file_uri } = await db.integrations.Core.UploadPrivateFile({ file });
+        const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file });
         fileUri = file_uri;
       } else if (!url) {
         setError('paste a link first');
@@ -54,7 +53,7 @@ export default function UploadMediaDialog({ open, onOpenChange, roomId, blockId,
         return;
       }
 
-      await db.entities.MediaItem.create({
+      await base44.entities.MediaItem.create({
         title: title || file?.name || url,
         kind,
         url: kind === 'link' ? url : '',

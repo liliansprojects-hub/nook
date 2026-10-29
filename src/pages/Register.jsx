@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -12,6 +11,7 @@ import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { toast } from "@/components/ui/use-toast";
 import { safeReturnTo } from "@/lib/authReturnTo";
+import { errMessage, errStatus } from "@/lib/errors";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -30,14 +30,20 @@ export default function Register() {
     if (!clean) return;
     setNameState({ status: "checking", message: "" });
     try {
-      const res = await db.functions.invoke("username", { action: "check", username: clean });
+      const res = await base44.functions.invoke("username", { action: "check", username: clean });
       setNameState(
         res.data?.available
           ? { status: "ok", message: "That name is free" }
           : { status: "taken", message: "That name is taken" }
       );
     } catch (err) {
-      setNameState({ status: "taken", message: "3–20 letters, numbers, dots or dashes" });
+      if (errStatus(err) === 400) {
+        // the server rejects names that are the wrong shape
+        setNameState({ status: "taken", message: errMessage(err, "3–20 letters, numbers, dots or dashes") });
+      } else {
+        // could not check right now: do not block sign-up, the final check happens when the name is saved
+        setNameState({ status: "idle", message: "Could not check that name right now" });
+      }
     }
   };
 
@@ -58,10 +64,10 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await db.auth.register({ email, password });
+      await base44.auth.register({ email, password });
       setShowOtp(true);
     } catch (err) {
-      setError(err.message || "Registration failed");
+      setError(errMessage(err, "Registration failed"));
     } finally {
       setLoading(false);
     }
@@ -71,14 +77,14 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      const result = await db.auth.verifyOtp({ email, otpCode });
+      const result = await base44.auth.verifyOtp({ email, otpCode });
       if (result?.access_token) {
-        db.auth.setToken(result.access_token);
+        base44.auth.setToken(result.access_token);
       }
       try {
         const clean = username.trim().toLowerCase();
-        await db.functions.invoke("username", { action: "set", username: clean });
-        await db.auth.updateMe({ username: clean });
+        await base44.functions.invoke("username", { action: "set", username: clean });
+        await base44.auth.updateMe({ username: clean });
       } catch (err) {
         toast({
           title: "Pick your username again",
@@ -87,7 +93,7 @@ export default function Register() {
       }
       window.location.href = safeReturnTo();
     } catch (err) {
-      setError(err.message || "Invalid verification code");
+      setError(errMessage(err, "Invalid verification code"));
     } finally {
       setLoading(false);
     }
@@ -96,15 +102,15 @@ export default function Register() {
   const handleResend = async () => {
     setError("");
     try {
-      await db.auth.resendOtp(email);
+      await base44.auth.resendOtp(email);
       toast({ title: "Code sent", description: "Check your email for the new code." });
     } catch (err) {
-      setError(err.message || "Failed to resend code");
+      setError(errMessage(err, "Failed to resend code"));
     }
   };
 
   const handleGoogle = () => {
-    db.auth.loginWithProvider("google", safeReturnTo());
+    base44.auth.loginWithProvider("google", safeReturnTo());
   };
 
   if (showOtp) {

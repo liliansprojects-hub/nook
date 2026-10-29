@@ -1,5 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
+import { base44 } from '@/api/base44Client';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -24,8 +23,8 @@ export default function Stats() {
     (async () => {
       try {
         const [blockPage, stats] = await Promise.all([
-          db.entities.Block.filter({ deleted: { $ne: true } }, { sort: 'created_date', limit: 300 }),
-          db.entities.StudySession.aggregate({
+          base44.entities.Block.filter({ deleted: { $ne: true } }, { sort: 'created_date', limit: 300 }),
+          base44.entities.StudySession.aggregate({
             query: { deleted: { $ne: true } },
             groupBy: 'block_id',
             sum: ['duration_seconds'],

@@ -1,5 +1,3 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
 import * as React from "react"
 import { ResponsiveImage } from "./responsive-image"
 import {
@@ -14,7 +12,7 @@ const FALLBACK_IMAGE_URL =
 
 /**
  * Image with built-in Wix Media Platform support: canonical public images on
- * media.db.com and static.wixstatic.com/media are resized to the rendered
+ * media.base44.com and static.wixstatic.com/media are resized to the rendered
  * container per device pixel ratio and served as AVIF/WebP when supported; `fittingType="fill"`
  * crops server-side, optionally anchored at a focal point. Other URLs render
  * as a plain <img>. Failed transforms retry the original URL; only a broken
