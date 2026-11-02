@@ -100,7 +100,7 @@ export default function Home() {
           <button
             type="button"
             onClick={freeSession}
-            className="press flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-2 text-[12px] text-brand-ink"
+            className="press flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-2 text-[12px] text-brand-on"
           >
             <Play className="h-3.5 w-3.5" /> free study
           </button>

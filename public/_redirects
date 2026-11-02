@@ -1,2 +1,4 @@
+# Base44 API (also fixes any sign-in link that uses a relative /api path)
+/api/*    https://base44.app/api/:splat   200
 # single-page app: every route is served by index.html (real files are served first)
 /*    /index.html   200

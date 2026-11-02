@@ -18,7 +18,7 @@ export default function Settings() {
   const [me, setMe] = useState(null);
   const [username, setUsername] = useState('');
   const [nameState, setNameState] = useState({ status: 'idle', message: '' });
-  const [accent, setAccent] = useState('coral');
+  const [accent, setAccent] = useState('espresso');
   const [password, setPassword] = useState('');
   const [dangerBusy, setDangerBusy] = useState('');
   const wallet = useWallet();
@@ -27,7 +27,7 @@ export default function Settings() {
     base44.auth.me().then(async (user) => {
       setMe(user);
       setUsername(user?.username || '');
-      setAccent(user?.accent || localStorage.getItem('nook.accent') || 'coral');
+      setAccent(user?.accent || localStorage.getItem('nook.accent') || 'espresso');
       try {
         const page = await base44.entities.Username.filter({ user_id: user.id }, { limit: 1 });
         const record = (page.items || [])[0];

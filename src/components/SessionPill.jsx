@@ -18,7 +18,7 @@ export default function SessionPill() {
       <button
         type="button"
         onClick={() => navigate(session.roomId ? `/room/${session.roomId}` : '/room/free')}
-        className="press flex items-center gap-2 rounded-full bg-brand px-3.5 py-2 text-brand-ink"
+        className="press flex items-center gap-2 rounded-full bg-brand px-3.5 py-2 text-brand-on"
       >
         <Timer className="h-4 w-4" />
         <span className="font-heading text-sm tabular-nums">{clock(elapsedSec)}</span>

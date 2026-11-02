@@ -447,7 +447,7 @@ export default function Desk({ roomId }) {
                 )}
 
                 {(item.quantity || 1) > 1 && (
-                  <span className="pointer-events-none absolute -right-1 top-0 rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-bold text-brand-ink">
+                  <span className="pointer-events-none absolute -right-1 top-0 rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-bold text-brand-on">
                     ×{item.quantity}
                   </span>
                 )}
@@ -456,7 +456,7 @@ export default function Desk({ roomId }) {
                   <span
                     className={cn(
                       'pointer-events-none absolute -left-1 -top-1 grid h-5 w-5 place-items-center rounded-full border-2',
-                      isSelected ? 'border-brand bg-brand text-brand-ink' : 'border-foreground/40 bg-card/90 text-transparent'
+                      isSelected ? 'border-brand bg-brand text-brand-on' : 'border-foreground/40 bg-card/90 text-transparent'
                     )}
                   >
                     <Check className="h-3 w-3" />
@@ -482,7 +482,7 @@ export default function Desk({ roomId }) {
           aria-pressed={selecting}
           className={cn(
             'absolute z-20 grid place-items-center rounded-full border shadow-sm',
-            selecting ? 'border-brand bg-brand text-brand-ink' : 'border-border bg-card/90 text-muted-foreground'
+            selecting ? 'border-brand bg-brand text-brand-on' : 'border-border bg-card/90 text-muted-foreground'
           )}
           style={{ right: 6, bottom: 6, width: CORNER, height: CORNER }}
         >

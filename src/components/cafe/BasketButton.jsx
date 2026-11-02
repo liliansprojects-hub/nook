@@ -13,7 +13,7 @@ export default function BasketButton({ basket, code }) {
     <button
       type="button"
       onClick={() => navigate('/checkout')}
-      className="press fixed bottom-8 right-5 z-40 flex items-center gap-2.5 rounded-full bg-brand px-4 py-3 text-brand-ink shadow-lift md:bottom-10 md:right-10"
+      className="press fixed bottom-8 right-5 z-40 flex items-center gap-2.5 rounded-full bg-brand px-4 py-3 text-brand-on shadow-lift md:bottom-10 md:right-10"
       data-testid="basket-button"
     >
       <span className="relative grid h-7 w-7 place-items-center rounded-full bg-background/15">

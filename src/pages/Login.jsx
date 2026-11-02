@@ -13,6 +13,7 @@ import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { toast } from "@/components/ui/use-toast";
 import { errMessage } from "@/lib/errors";
+import { startGoogleLogin } from "@/lib/googleLogin";
 
 const RESEND_SECONDS = 20; // matches the server-side limit in the authCode function
 
@@ -25,6 +26,8 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  // which email system sent the code: our function, or the built-in verification email (the one sign-up uses)
+  const [via, setVia] = useState("function");
   const returnTo = safeReturnTo();
 
   useEffect(() => {
@@ -33,22 +36,39 @@ export default function Login() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  // Asks the server to email a fresh six-digit code. Returns an error string, or "" when it went out.
+  // Emails a fresh six-digit code. Tries our own function first and, if that is not
+  // reachable or cannot send, the built-in verification email that sign-up already uses.
+  // Returns an error string, or "" when a code went out.
   const sendCode = async () => {
+    let failure = "";
     try {
       const res = await base44.functions.invoke("authCode", { action: "send" });
-      if (res?.data?.error) return res.data.error;
-      setCooldown(RESEND_SECONDS);
-      return "";
-    } catch (err) {
-      // "a code was just sent" is not a failure: the earlier email is still valid
-      if (err?.status === 429 || err?.response?.status === 429) {
+      if (!res?.data?.error) {
+        setVia("function");
         setCooldown(RESEND_SECONDS);
         return "";
       }
-      return errMessage(err, "We could not email your code");
+      failure = res.data.error;
+    } catch (err) {
+      // "a code was just sent" is not a failure: the earlier email is still valid
+      if (err?.status === 429 || err?.response?.status === 429) {
+        setVia("function");
+        setCooldown(RESEND_SECONDS);
+        return "";
+      }
+      failure = errMessage(err, "We could not email your code");
+      console.warn("authCode send failed, trying the built-in email:", failure);
+    }
+    try {
+      await base44.auth.resendOtp(email);
+      setVia("otp");
+      setCooldown(RESEND_SECONDS);
+      return "";
+    } catch (err) {
+      return errMessage(err, failure || "We could not email your code");
     }
   };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -71,6 +91,12 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
+      if (via === "otp") {
+        const result = await base44.auth.verifyOtp({ email, otpCode: code });
+        if (result?.access_token) base44.auth.setToken(result.access_token);
+        window.location.href = returnTo;
+        return;
+      }
       const res = await base44.functions.invoke("authCode", { action: "verify", code });
       if (res?.data?.error) {
         setError(res.data.error);
@@ -98,7 +124,7 @@ export default function Login() {
   };
 
   const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", returnTo);
+    startGoogleLogin(returnTo);
   };
 
   if (step === "code") {

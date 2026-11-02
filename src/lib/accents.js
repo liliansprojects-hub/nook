@@ -1,6 +1,7 @@
 // Pastel accents. Picking one tints the whole app: the brand tone, a soft tint
 // used by chips and card edges, and an ink tone for headings.
 export const ACCENTS = [
+  { id: 'espresso', name: 'Espresso', brand: '24 38% 24%', soft: '26 24% 94%', ink: '24 36% 22%', onBrand: '0 0% 100%' },
   { id: 'coral', name: 'Coral', brand: '8 78% 74%', soft: '8 80% 96%', ink: '8 42% 36%' },
   { id: 'apricot', name: 'Apricot', brand: '26 82% 76%', soft: '28 85% 96%', ink: '24 45% 36%' },
   { id: 'honey', name: 'Honey', brand: '44 82% 76%', soft: '44 88% 96%', ink: '40 45% 34%' },
@@ -26,7 +27,7 @@ export const TAG_COLOURS = [
 
 const SAVED_KEY = 'nook.accent';
 const CUSTOM_KEY = 'nook.accent.custom';
-const DEFAULT_SHADE = { h: 8, s: 78, l: 74 };
+const DEFAULT_SHADE = { h: 24, s: 38, l: 24 };
 
 const hueOf = (brand) => brand.split(' ')[0];
 const tint = (brand, s, l) => `${hueOf(brand)} ${s}% ${l}%`;

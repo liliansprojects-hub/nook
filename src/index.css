@@ -22,8 +22,8 @@
     --card-foreground: 0 0% 13%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 13%;
-    --primary: 8 78% 74%;
-    --primary-foreground: 8 42% 36%;
+    --primary: 24 38% 24%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 24%;
     --muted: 0 0% 96%;
@@ -34,12 +34,12 @@
     --destructive-foreground: 0 0% 100%;
     --border: 0 0% 91%;
     --input: 0 0% 91%;
-    --ring: 8 78% 74%;
-    --brand: 8 78% 74%;
-    --brand-soft: 8 80% 96%;
-    --brand-ink: 8 42% 36%;
+    --ring: 24 38% 24%;
+    --brand: 24 38% 24%;
+    --brand-soft: 26 24% 94%;
+    --brand-ink: 24 36% 22%;
     --brand-foreground: 0 0% 100%;
-    --brand-on: 8 42% 36%;
+    --brand-on: 0 0% 100%;
     --radius: 1.35rem;
     --font-heading: 'Arial Rounded MT Bold', 'Helvetica Rounded', 'Varela Round', ui-rounded, system-ui, sans-serif;
     --font-body: 'Arial Rounded MT Bold', 'Helvetica Rounded', 'Varela Round', ui-rounded, system-ui, sans-serif;
@@ -47,12 +47,12 @@
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 0 0% 13%;
-    --sidebar-primary: 8 78% 74%;
-    --sidebar-primary-foreground: 8 42% 36%;
+    --sidebar-primary: 24 38% 24%;
+    --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 96%;
     --sidebar-accent-foreground: 0 0% 24%;
     --sidebar-border: 0 0% 91%;
-    --sidebar-ring: 8 78% 74%;
+    --sidebar-ring: 24 38% 24%;
   }
 
   .dark {
@@ -62,7 +62,7 @@
     --card-foreground: 0 0% 96%;
     --popover: 0 0% 11%;
     --popover-foreground: 0 0% 96%;
-    --primary: 8 70% 62%;
+    --primary: 26 36% 62%;
     --primary-foreground: 0 0% 12%;
     --secondary: 0 0% 16%;
     --secondary-foreground: 0 0% 96%;
@@ -74,20 +74,20 @@
     --destructive-foreground: 0 0% 100%;
     --border: 0 0% 19%;
     --input: 0 0% 19%;
-    --ring: 8 70% 60%;
-    --brand: 8 70% 62%;
-    --brand-soft: 8 20% 22%;
-    --brand-ink: 8 70% 82%;
+    --ring: 26 36% 62%;
+    --brand: 26 36% 62%;
+    --brand-soft: 24 16% 22%;
+    --brand-ink: 26 40% 82%;
     --brand-foreground: 0 0% 100%;
     --sidebar-background: 0 0% 8%;
     --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 8 70% 62%;
+    --sidebar-primary: 26 36% 62%;
     --sidebar-primary-foreground: 0 0% 12%;
     --sidebar-accent: 0 0% 16%;
     --sidebar-accent-foreground: 0 0% 96%;
     --sidebar-border: 0 0% 19%;
-    --sidebar-ring: 8 70% 60%;
-    --brand-on: 8 70% 82%;
+    --sidebar-ring: 26 36% 62%;
+    --brand-on: 24 30% 10%;
   }
 
   /* subheadings and secondary copy sit a touch heavier than body text */
