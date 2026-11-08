@@ -188,3 +188,6 @@
   from { margin-bottom: var(--drop); opacity: 0; }
   to { margin-bottom: 0; opacity: 1; }
 }
+
+/* hosting badges never show */
+netlify-drawer, #netlify-drawer, #netlify-badge, iframe[src*="netlify"] { display: none !important; }

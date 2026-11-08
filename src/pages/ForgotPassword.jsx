@@ -1,5 +1,5 @@
 import { base44 } from '@/api/base44Client';
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -14,19 +14,29 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return undefined;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
+    if (cooldown > 0) return;
     setError("");
     setLoading(true);
     try {
       await base44.auth.resetPasswordRequest(email.trim());
       setSent(true);
+      setCooldown(30);
     } catch (err) {
       const status = errStatus(err);
       if (status && status < 500 && status !== 429) {
         // unknown address and similar: look the same as success so accounts cannot be probed
         setSent(true);
+        setCooldown(30);
       } else if (isNetworkError(err)) {
         setError("You look to be offline. Reconnect and try again.");
       } else if (status === 429) {
@@ -62,6 +72,10 @@ export default function ForgotPassword() {
             </Link>
             .
           </p>
+          {error && <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
+          <Button type="button" variant="outline" className="w-full h-11" onClick={handleSubmit} disabled={loading || cooldown > 0}>
+            {cooldown > 0 ? `Send again (${cooldown}s)` : "Send again"}
+          </Button>
           <button type="button" onClick={() => setSent(false)} className="text-xs text-primary hover:underline">
             Use a different email
           </button>

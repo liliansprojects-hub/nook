@@ -1,5 +1,5 @@
 import { base44 } from '@/api/base44Client';
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,11 @@ import GoogleIcon from "@/components/GoogleIcon";
 import { toast } from "@/components/ui/use-toast";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { errMessage, errStatus } from "@/lib/errors";
-import { startGoogleLogin } from "@/lib/googleLogin";
+import { GOOGLE_ENABLED, startGoogleLogin } from "@/lib/googleLogin";
+import PasswordInput, { ValidTick } from "@/components/PasswordInput";
+import { rememberLogin } from "@/lib/identity";
+
+const RESEND_SECONDS = 30;
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -24,6 +28,15 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return undefined;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  const passwordsMatch = password.length > 0 && password === confirmPassword;
 
   const checkName = async (value) => {
     const clean = value.trim().toLowerCase();
@@ -66,9 +79,23 @@ export default function Register() {
     setLoading(true);
     try {
       await base44.auth.register({ email, password });
+      setCooldown(RESEND_SECONDS);
       setShowOtp(true);
     } catch (err) {
-      setError(errMessage(err, "Registration failed"));
+      const msg = errMessage(err, "Registration failed");
+      if (/already|exist|registered|in use|taken/i.test(msg)) {
+        // an account for this email may have been made but never verified: send a fresh code
+        try {
+          await base44.auth.resendOtp(email);
+          setCooldown(RESEND_SECONDS);
+          setShowOtp(true);
+          toast({ title: "Check your email", description: "That address has an account that isn't verified yet. We sent a new code." });
+        } catch {
+          setError("That email already has an account. Log in instead.");
+        }
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -81,7 +108,11 @@ export default function Register() {
       const result = await base44.auth.verifyOtp({ email, otpCode });
       if (result?.access_token) {
         base44.auth.setToken(result.access_token);
+      } else {
+        // verified but not signed in yet: sign in with the details just typed, so there is no second login
+        await base44.auth.loginViaEmailPassword(email, password);
       }
+      rememberLogin(username, email);
       try {
         const clean = username.trim().toLowerCase();
         await base44.functions.invoke("username", { action: "set", username: clean });
@@ -101,9 +132,11 @@ export default function Register() {
   };
 
   const handleResend = async () => {
+    if (cooldown > 0) return;
     setError("");
     try {
       await base44.auth.resendOtp(email);
+      setCooldown(RESEND_SECONDS);
       toast({ title: "Code sent", description: "Check your email for the new code." });
     } catch (err) {
       setError(errMessage(err, "Failed to resend code"));
@@ -142,8 +175,13 @@ export default function Register() {
         </Button>
         <p className="text-center text-sm text-muted-foreground mt-4">
           Didn't receive the code?{" "}
-          <button onClick={handleResend} className="text-primary font-medium hover:underline">
-            Resend
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={cooldown > 0}
+            className="text-primary font-medium hover:underline disabled:opacity-50 disabled:no-underline"
+          >
+            {cooldown > 0 ? `Resend (${cooldown}s)` : "Resend"}
           </button>
         </p>
       </AuthLayout>
@@ -167,6 +205,8 @@ export default function Register() {
         </>
       }
     >
+      {GOOGLE_ENABLED && (
+        <>
       <Button variant="outline" className="w-full h-12 text-sm font-medium mb-6" onClick={handleGoogle}>
         <GoogleIcon className="w-5 h-5 mr-2" />
         Continue with Google
@@ -180,6 +220,8 @@ export default function Register() {
           <span className="bg-card px-3 text-muted-foreground">or</span>
         </div>
       </div>
+        </>
+      )}
 
       {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
 
@@ -216,9 +258,14 @@ export default function Register() {
                 setNameState({ status: "idle", message: "" });
               }}
               onBlur={(e) => checkName(e.target.value)}
-              className="pl-10 h-12"
+              className="pl-10 pr-10 h-12"
               required
             />
+            {nameState.status === "ok" && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                <ValidTick />
+              </span>
+            )}
           </div>
           {nameState.message && (
             <p
@@ -235,36 +282,28 @@ export default function Register() {
 
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pl-10 h-12"
-              required
-            />
-          </div>
+          <PasswordInput
+            id="password"
+            autoComplete="new-password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            valid={passwordsMatch}
+            required
+          />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="confirm">Confirm Password</Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <Input
-              id="confirm"
-              type="password"
-              autoComplete="new-password"
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="pl-10 h-12"
-              required
-            />
-          </div>
+          <PasswordInput
+            id="confirm"
+            autoComplete="new-password"
+            placeholder="••••••••"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            valid={passwordsMatch}
+            required
+          />
         </div>
 
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>

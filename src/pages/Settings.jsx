@@ -1,5 +1,7 @@
 import { signOutLocally } from '@/lib/session';
 import { clearLocalGrants } from '@/lib/devCoins';
+import PasswordInput from '@/components/PasswordInput';
+import { errStatus, isNetworkError } from '@/lib/errors';
 import { base44 } from '@/api/base44Client';
 import { useEffect, useState } from 'react';
 
@@ -93,7 +95,12 @@ export default function Settings() {
       await base44.auth.resetPasswordRequest(me.email);
       toast({ title: 'check your email', description: 'reset link sent.' });
     } catch (err) {
-      toast({ title: 'check your email', description: 'if that address exists, a link is on its way.' });
+      const status = errStatus(err);
+      if (isNetworkError(err) || !status || status >= 500 || status === 429) {
+        toast({ title: 'could not send', description: 'try again in a moment.' });
+      } else {
+        toast({ title: 'check your email', description: 'if that address exists, a link is on its way.' });
+      }
     }
   };
 
@@ -224,7 +231,6 @@ export default function Settings() {
             <LogOut className="mr-2 h-4 w-4" /> log out
           </Button>
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">sign-in also needs a six-digit code we email you.</p>
       </section>
 
       <section className="surface p-5">
@@ -237,8 +243,8 @@ export default function Settings() {
           <Trash2 className="h-4 w-4" /> account
         </h2>
         <div className="space-y-3">
-          <Input
-            type="password"
+          <PasswordInput
+            icon={false}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="your password"

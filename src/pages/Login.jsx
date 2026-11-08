@@ -1,4 +1,3 @@
-import { signOutLocally } from '@/lib/session';
 import { base44 } from '@/api/base44Client';
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -6,28 +5,29 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2, ShieldCheck } from "lucide-react";
+import { LogIn, AtSign, Loader2, Mail } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
+import PasswordInput from "@/components/PasswordInput";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { toast } from "@/components/ui/use-toast";
-import { errMessage } from "@/lib/errors";
-import { startGoogleLogin } from "@/lib/googleLogin";
+import { errMessage, errStatus } from "@/lib/errors";
+import { GOOGLE_ENABLED, startGoogleLogin } from "@/lib/googleLogin";
+import { resolveEmail, rememberLogin } from "@/lib/identity";
 
-const RESEND_SECONDS = 20; // matches the server-side limit in the authCode function
+const RESEND_SECONDS = 30;
+const looksUnverified = (err) => /verif|confirm.*email|not.*activ/i.test(errMessage(err, ""));
 
 export default function Login() {
+  const [identifier, setIdentifier] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [step, setStep] = useState("password");
-  const [sendFailed, setSendFailed] = useState(false);
+  const [step, setStep] = useState("password"); // "password" | "verify"
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  // which email system sent the code: our function, or the built-in verification email (the one sign-up uses)
-  const [via, setVia] = useState("function");
   const returnTo = safeReturnTo();
 
   useEffect(() => {
@@ -36,76 +36,52 @@ export default function Login() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  // Emails a fresh six-digit code. Tries our own function first and, if that is not
-  // reachable or cannot send, the built-in verification email that sign-up already uses.
-  // Returns an error string, or "" when a code went out.
-  const sendCode = async () => {
-    let failure = "";
-    try {
-      const res = await base44.functions.invoke("authCode", { action: "send" });
-      if (!res?.data?.error) {
-        setVia("function");
-        setCooldown(RESEND_SECONDS);
-        return "";
-      }
-      failure = res.data.error;
-    } catch (err) {
-      // "a code was just sent" is not a failure: the earlier email is still valid
-      if (err?.status === 429 || err?.response?.status === 429) {
-        setVia("function");
-        setCooldown(RESEND_SECONDS);
-        return "";
-      }
-      failure = errMessage(err, "We could not email your code");
-      console.warn("authCode send failed, trying the built-in email:", failure);
-    }
-    try {
-      await base44.auth.resendOtp(email);
-      setVia("otp");
-      setCooldown(RESEND_SECONDS);
-      return "";
-    } catch (err) {
-      return errMessage(err, failure || "We could not email your code");
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-    try {
-      await base44.auth.loginViaEmailPassword(email, password);
-    } catch (err) {
-      setError(errMessage(err, "Invalid email or password"));
+    const who = await resolveEmail(identifier);
+    if (!who) {
+      setError("We couldn't find that username on this device. Log in once with your email, then your username works here.");
       setLoading(false);
       return;
     }
-    const failure = await sendCode();
-    setSendFailed(!!failure);
-    if (failure) setError(failure);
-    setStep("code");
-    setLoading(false);
+    try {
+      await base44.auth.loginViaEmailPassword(who, password);
+    } catch (err) {
+      if (looksUnverified(err)) {
+        // account made but never verified: send the code again and let them finish here
+        try {
+          await base44.auth.resendOtp(who);
+          setEmail(who);
+          setCode("");
+          setCooldown(RESEND_SECONDS);
+          setStep("verify");
+        } catch (sendErr) {
+          setError(errMessage(sendErr, "We could not send your verification code. Try again in a moment."));
+        }
+      } else {
+        const status = errStatus(err);
+        setError(status === 400 || status === 401 || status === 403 || status === 404 ? "Wrong username or password" : errMessage(err, "Could not log in"));
+      }
+      setLoading(false);
+      return;
+    }
+    rememberLogin(identifier, who);
+    window.location.href = returnTo;
   };
 
   const handleVerify = async () => {
     setError("");
     setLoading(true);
     try {
-      if (via === "otp") {
-        const result = await base44.auth.verifyOtp({ email, otpCode: code });
-        if (result?.access_token) base44.auth.setToken(result.access_token);
-        window.location.href = returnTo;
-        return;
-      }
-      const res = await base44.functions.invoke("authCode", { action: "verify", code });
-      if (res?.data?.error) {
-        setError(res.data.error);
-      } else {
-        window.location.href = returnTo;
-      }
+      const result = await base44.auth.verifyOtp({ email, otpCode: code });
+      if (result?.access_token) base44.auth.setToken(result.access_token);
+      else await base44.auth.loginViaEmailPassword(email, password);
+      rememberLogin(identifier, email);
+      window.location.href = returnTo;
     } catch (err) {
       setError(errMessage(err, "That code is not right"));
-    } finally {
       setLoading(false);
     }
   };
@@ -113,57 +89,38 @@ export default function Login() {
   const handleResend = async () => {
     if (cooldown > 0) return;
     setError("");
-    const failure = await sendCode();
-    if (failure) {
-      setError(failure);
-      setSendFailed(true);
-    } else {
-      setSendFailed(false);
-      toast({ title: "Code sent", description: `Check ${email} for a new six-digit code.` });
+    try {
+      await base44.auth.resendOtp(email);
+      setCooldown(RESEND_SECONDS);
+      toast({ title: "Code sent", description: `Check ${email} for a new code.` });
+    } catch (err) {
+      setError(errMessage(err, "We could not send a new code"));
     }
   };
 
-  const handleGoogle = () => {
-    startGoogleLogin(returnTo);
-  };
-
-  if (step === "code") {
+  if (step === "verify") {
     return (
-      <AuthLayout
-        icon={ShieldCheck}
-        title="One more step"
-        subtitle={`We emailed a six-digit code to ${email}`}
-      >
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-            {error}
-          </div>
-        )}
-
+      <AuthLayout icon={Mail} title="Verify your email" subtitle={`We sent a code to ${email}`}>
+        {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
         <div className="flex justify-center mb-6">
           <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus autoComplete="one-time-code">
             <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
-              <InputOTPSlot index={4} />
-              <InputOTPSlot index={5} />
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <InputOTPSlot key={i} index={i} />
+              ))}
             </InputOTPGroup>
           </InputOTP>
         </div>
-
         <Button className="w-full h-12 font-medium" onClick={handleVerify} disabled={loading || code.length < 6}>
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Checking...
+              Verifying...
             </>
           ) : (
-            "Enter Nook"
+            "Verify and log in"
           )}
         </Button>
-
         <p className="text-center text-sm text-muted-foreground mt-4">
           Didn't get it?{" "}
           <button
@@ -172,30 +129,19 @@ export default function Login() {
             disabled={cooldown > 0}
             className="text-primary font-medium hover:underline disabled:opacity-50 disabled:no-underline"
           >
-            {cooldown > 0 ? `Send a new code (${cooldown}s)` : "Send a new code"}
+            {cooldown > 0 ? `Send again (${cooldown}s)` : "Send again"}
           </button>
         </p>
-
-        {sendFailed && (
-          <p className="text-center text-xs text-muted-foreground mt-3">
-            Email trouble?{" "}
-            <button
-              onClick={() => {
-                window.location.href = returnTo;
-              }}
-              className="font-medium hover:underline"
-            >
-              Continue without a code
-            </button>
-          </p>
-        )}
-
-        <p className="text-center text-xs text-muted-foreground mt-6">
+        <p className="text-center text-xs text-muted-foreground mt-3">
           <button
-            onClick={() => signOutLocally("/login")}
-            className="hover:underline"
+            type="button"
+            onClick={() => {
+              setStep("password");
+              setError("");
+            }}
+            className="font-medium hover:underline"
           >
-            Use a different account
+            Back to log in
           </button>
         </p>
       </AuthLayout>
@@ -219,39 +165,39 @@ export default function Login() {
         </>
       }
     >
-      <Button variant="outline" className="w-full h-12 text-sm font-medium mb-6" onClick={handleGoogle}>
-        <GoogleIcon className="w-5 h-5 mr-2" />
-        Continue with Google
-      </Button>
-
-      <div className="relative mb-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border" />
-        </div>
-        <div className="relative flex justify-center text-xs">
-          <span className="bg-card px-3 text-muted-foreground">or</span>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {error}
-        </div>
+      {GOOGLE_ENABLED && (
+        <>
+          <Button variant="outline" className="w-full h-12 text-sm font-medium mb-6" onClick={() => startGoogleLogin(returnTo)}>
+            <GoogleIcon className="w-5 h-5 mr-2" />
+            Continue with Google
+          </Button>
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-card px-3 text-muted-foreground">or</span>
+            </div>
+          </div>
+        </>
       )}
+
+      {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="username">Username</Label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <Input
-              id="email"
-              type="email"
-              autoComplete="email"
+              id="username"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
               autoFocus
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               className="pl-10 h-12"
               required
             />
@@ -264,36 +210,26 @@ export default function Login() {
               Forgot password?
             </Link>
           </div>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pl-10 h-12"
-              required
-            />
-          </div>
+          <PasswordInput
+            id="password"
+            autoComplete="current-password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Sending your code...
+              Logging in...
             </>
           ) : (
             "Log in"
           )}
         </Button>
       </form>
-
-      <p className="text-center text-xs text-muted-foreground mt-4 flex items-center justify-center gap-1.5">
-        <ShieldCheck className="w-3.5 h-3.5" />
-        We email a six-digit code to finish signing in
-      </p>
     </AuthLayout>
   );
 }

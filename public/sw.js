@@ -9,7 +9,7 @@
  * - API calls to other origins are never touched; the app keeps its own
  *   offline copy of the data it needs (see src/lib/offline.js)
  */
-const VERSION = 'nook-v3';
+const VERSION = 'nook-v4';
 const SHELL_CACHE = `${VERSION}-shell`;
 const STATIC_CACHE = `${VERSION}-static`;
 const IMG_CACHE = `${VERSION}-img`; // no-cors (plain <img>) responses
@@ -24,6 +24,7 @@ const REQUIRED = [SHELL_URL, OFFLINE_URL];
 // nice to have; a missing file never blocks install
 const OPTIONAL = [
   '/manifest.json',
+  '/splash-logo.png',
   '/favicon.ico',
   '/favicon-32.png',
   '/apple-touch-icon-180.png',
